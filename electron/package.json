@@ -1,0 +1,51 @@
+{
+  "name": "octis",
+  "version": "1.0.0",
+  "description": "AI-powered lecture note taker",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.octis.app",
+    "productName": "Octis",
+    "directories": {
+      "output": "../dist_electron"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist_python/app/",
+        "to": "python/",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "../icon.png",
+      "category": "public.app-category.education"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+config.py
+__pycache__/
+build/
+dist/
+dist_python/
+dist_electron/
+*.pyc
+*.pyz
+node_modules/
+electron/node_modules/
+lecture_history.json
+study_materials/

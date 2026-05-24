@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Companion</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue:        #5B52E0;
+    --blue-hover:  #4A42CC;
+    --blue-light:  #EEEDFE;
+    --coral:       #D85A30;
+    --coral-hover: #B84A25;
+    --teal:        #1D9E75;
+    --muted:       #9A9AA8;
+    --bg:          #F0F2F5;
+    --nav:         #FFFFFF;
+    --card:        #FFFFFF;
+    --text:        #1A1A2E;
+    --text-sub:    #5A5A72;
+    --border:      #E2E4E9;
+    --radius:      20px;
+    --transition:  0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-theme="dark"] {
+    --bg:       #12121F;
+    --nav:      #1C1C2E;
+    --card:     #23233A;
+    --text:     #EEEEF5;
+    --text-sub: #8A8AA8;
+    --border:   #2E2E48;
+    --blue-light: #1e1a4a;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background var(--transition), color var(--transition);
+    overflow-x: hidden;
+  }
+
+  /* ── Navbar ───────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center;
+    height: 58px; padding: 0 28px;
+    background: var(--nav);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition), border-color var(--transition);
+  }
+
+  .nav-logo {
+    width: 32px; height: 32px;
+    background: var(--blue);
+    border-radius: 10px;
+    margin-right: 12px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .nav-logo svg { width: 18px; height: 18px; fill: #fff; }
+
+  .nav-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 17px;
+    color: var(--text);
+    flex: 1;
+    transition: color var(--transition);
+  }
+
+  .theme-btn {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--transition), border-color var(--transition), transform 0.3s ease;
+    padding: 0;
+  }
+  .theme-btn:hover { background: var(--blue-light); transform: rotate(25deg); }
+  .theme-btn svg { width: 18px; height: 18px; transition: fill var(--transition); }
+  .theme-btn .icon-moon { fill: var(--text); display: block; }
+  .theme-btn .icon-sun  { fill: var(--text); display: none; }
+  [data-theme="dark"] .theme-btn .icon-moon { display: none; }
+  [data-theme="dark"] .theme-btn .icon-sun  { display: block; }
+
+  /* ── Main scroll area ─────────────────────────────────────── */
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+  }
+
+  /* ── Record card ──────────────────────────────────────────── */
+  .record-card {
+    border-radius: 26px;
+    padding: 36px 24px 32px;
+    text-align: center;
+    background: var(--blue);
+    transition: background 0.5s cubic-bezier(0.4,0,0.2,1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .record-card.recording { background: var(--coral); }
+  .record-card.paused    { background: var(--blue); }
+
+  .record-card h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px;
+    color: #fff;
+    margin-bottom: 6px;
+    transition: opacity 0.3s;
+  }
+
+  .record-card p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.72);
+    margin-bottom: 28px;
+    transition: opacity 0.3s;
+  }
+
+  /* ── Mic + split buttons ──────────────────────────────────── */
+  .btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 20px;
+    min-height: 88px;
+  }
+
+  .side-btn {
+    width: 0;
+    height: 72px;
+    border-radius: 36px;
+    border: none;
+    background: rgba(255,255,255,0.95);
+    cursor: pointer;
+    font-size: 22px;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 0.35s ease,
+      background 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .side-btn.visible {
+    width: 108px;
+    opacity: 1;
+    margin: 0 10px;
+  }
+
+  .side-btn:hover { background: #fff; transform: scale(1.04); }
+  .side-btn .btn-icon { font-size: 22px; pointer-events: none; }
+  .side-btn .btn-label {
+    font-size: 10px; font-weight: 600;
+    color: var(--coral);
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+    display: block;
+  }
+
+  .side-btn-inner { display: flex; flex-direction: column; align-items: center; }
+
+  .mic-btn {
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.95);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), background 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    padding: 0;
+  }
+  .mic-btn svg { pointer-events: none; }
+  .mic-btn .mic-generating { display: none; font-size: 26px; }
+  .mic-btn.generating svg { display: none; }
+  .mic-btn.generating .mic-generating { display: block; }
+
+  .mic-btn:hover { transform: scale(1.08); background: #fff; }
+  .mic-btn:active { transform: scale(0.96); }
+  .mic-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+
+  /* ── Sound wave bars ──────────────────────────────────────── */
+  .wave-bars {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 32px;
+    margin-bottom: 4px;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .wave-bars.active { opacity: 1; }
+
+  .wave-bar {
+    width: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.85);
+    animation: wave 1.2s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+
+  .wave-bar:nth-child(1) { animation-delay: 0s;    height: 12px; }
+  .wave-bar:nth-child(2) { animation-delay: 0.15s; height: 20px; }
+  .wave-bar:nth-child(3) { animation-delay: 0.3s;  height: 28px; }
+  .wave-bar:nth-child(4) { animation-delay: 0.45s; height: 20px; }
+  .wave-bar:nth-child(5) { animation-delay: 0.6s;  height: 14px; }
+  .wave-bar:nth-child(6) { animation-delay: 0.75s; height: 24px; }
+  .wave-bar:nth-child(7) { animation-delay: 0.9s;  height: 16px; }
+
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+    50%       { transform: scaleY(1);   opacity: 1; }
+  }
+
+  .tap-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.65);
+  }
+
+  /* ── Progress bar ─────────────────────────────────────────── */
+  .progress-wrap {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 14px 0 6px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .progress-wrap.visible { opacity: 1; }
+
+  .progress-bar {
+    height: 100%;
+    width: 40%;
+    background: var(--blue);
+    border-radius: 2px;
+    animation: progress-slide 1.4s ease-in-out infinite;
+  }
+
+  @keyframes progress-slide {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+
+  /* ── Status text ──────────────────────────────────────────── */
+  .status-text {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    min-height: 18px;
+    margin: 6px 0 16px;
+    transition: color var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Transcript box ───────────────────────────────────────── */
+  .transcript-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    max-height: 380px;
+    overflow-y: auto;
+    display: none;
+    transition: background var(--transition), border-color var(--transition);
+  }
+
+  .transcript-section.visible { display: block; }
+
+  .transcript-section p {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-sub);
+    line-height: 1.7;
+    transition: color var(--transition);
+  }
+
+  /* ── History section ──────────────────────────────────────── */
+  .history-section { margin-top: 8px; }
+
+  .history-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 14px;
+    transition: color var(--transition);
+  }
+
+  .history-empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 24px 0;
+    transition: color var(--transition);
+  }
+
+  .history-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition:
+      background var(--transition),
+      border-color var(--transition),
+      transform 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .history-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(91,82,224,0.10);
+  }
+
+  .history-info { flex: 1; }
+
+  .history-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+    transition: color var(--transition);
+  }
+
+  .history-meta {
+    font-size: 12px;
+    color: var(--muted);
+    transition: color var(--transition);
+  }
+
+  .history-arrow {
+    font-size: 18px;
+    color: var(--muted);
+    margin-left: 12px;
+  }
+
+  /* ── Results screen ───────────────────────────────────────── */
+  #results-screen {
+    display: none;
+    animation: fade-up 0.4s ease both;
+  }
+
+  #results-screen.visible { display: block; }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .results-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 10px 22px;
+    border-radius: 12px;
+    border: none;
+    background: var(--blue);
+    margin-bottom: 20px;
+    transition: background 0.2s, transform 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .results-back:hover { background: var(--blue-hover); transform: translateX(-2px); }
+
+
+  .results-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: var(--text);
+    margin-bottom: 4px;
+    transition: color var(--transition);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .results-title:hover .edit-icon { opacity: 1; }
+
+  .edit-icon {
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .title-input {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--blue);
+    outline: none;
+    width: 100%;
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+    display: none;
+  }
+
+  .results-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    transition: color var(--transition);
+  }
+
+  /* ── Tabs ─────────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    background: var(--blue-light);
+    padding: 5px;
+    border-radius: 14px;
+    transition: background var(--transition);
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 9px 0;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    transition: background 0.25s, color 0.25s;
+  }
+
+  .tab-btn.active {
+    background: var(--blue);
+    color: #fff;
+  }
+
+  .tab-content {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 24px;
+    min-height: 300px;
+    max-height: 420px;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-sub);
+    white-space: pre-wrap;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+    animation: fade-up 0.3s ease both;
+  }
+
+  .tab-content.active { display: block; }
+
+  /* ── Scrollbar styling ────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-logo">
+    <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
+  </div>
+  <span class="nav-title">Octis</span>
+  <button class="theme-btn" id="themeBtn" title="Toggle theme">
+    <!-- Moon icon -->
+    <svg class="icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+    </svg>
+    <!-- Sun icon -->
+    <svg class="icon-sun" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="4" fill="none" stroke-width="2" stroke="currentColor" style="fill:none;stroke:var(--text);stroke-width:2"/>
+      <line x1="12" y1="2"  x2="12" y2="5"  stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="12" y1="19" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="2"  y1="12" x2="5"  y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="19" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="4.22"  y1="4.22"  x2="6.34"  y2="6.34"  stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="4.22"  y1="19.78" x2="6.34"  y2="17.66" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+      <line x1="17.66" y1="6.34"  x2="19.78" y2="4.22"  stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke:var(--text)"/>
+    </svg>
+  </button>
+</nav>
+
+<!-- ── Main ──────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Home screen -->
+  <div id="home-screen">
+
+    <!-- Record card -->
+    <div class="record-card" id="recordCard">
+      <h2 id="cardTitle">Record a new class</h2>
+      <p id="cardSubtitle">Tap below to start capturing your lecture</p>
+
+      <!-- Sound wave bars -->
+      <div class="wave-bars" id="waveBars">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+
+      <!-- Button row -->
+      <div class="btn-row" id="btnRow">
+        <!-- Pause button (left) -->
+        <button class="side-btn" id="pauseBtn" onclick="onPause()">
+          <div class="side-btn-inner">
+            <span class="btn-icon" id="pauseIcon">⏸</span>
+            <span class="btn-label">PAUSE</span>
+          </div>
+        </button>
+
+        <!-- Mic button (center) -->
+        <button id="micBtn" onclick="onMicPress()" style="width:84px;height:84px;border-radius:50%;border:none;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:10;position:relative;">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:34px;height:34px;pointer-events:none;">
+            <rect x="9" y="2" width="6" height="11" rx="3" ry="3" fill="#5B52E0"/>
+            <path d="M5 10a7 7 0 0 0 14 0" fill="none" stroke="#5B52E0" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="19" x2="12" y2="22" stroke="#5B52E0" stroke-width="2" stroke-linecap="round"/>
+            <line x1="8"  y1="22" x2="16" y2="22" stroke="#5B52E0" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Stop button (right) -->
+        <button class="side-btn" id="stopBtn" onclick="onStop()">
+          <div class="side-btn-inner">
+            <span class="btn-icon">⏹</span>
+            <span class="btn-label">GENERATE</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="tap-label" id="tapLabel">TAP TO START RECORDING</div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"></div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-text" id="statusText"></div>
+
+    <!-- Transcript -->
+    <div class="transcript-section" id="transcriptSection">
+      <p id="transcriptText"></p>
+    </div>
+
+    <!-- History -->
+    <div class="history-section" id="historySection">
+      <div class="history-label">RECORDED CLASSES</div>
+      <div id="historyList"></div>
+    </div>
+
+  </div>
+
+  <!-- Results screen -->
+  <div id="results-screen">
+    <button class="results-back" onclick="backHome()">← Back</button>
+    <div class="results-title" id="resultsTitle" onclick="startEditTitle()">
+      <span id="titleText"></span>
+      <span class="edit-icon">✏</span>
+    </div>
+    <input class="title-input" id="titleInput" type="text" onblur="saveTitle()" onkeydown="if(event.key==='Enter') saveTitle()"/>
+    <div class="results-meta" id="resultsMeta"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('notes', this)">Notes</button>
+      <button class="tab-btn" onclick="switchTab('flashcards', this)">Flashcards</button>
+      <button class="tab-btn" onclick="switchTab('summary', this)">Summary</button>
+      <button class="tab-btn" onclick="switchTab('transcript', this)">Transcript</button>
+    </div>
+
+    <div class="tab-content active" id="tab-notes"></div>
+    <div class="tab-content" id="tab-flashcards">
+      <textarea id="flashcardsEdit" style="width:100%;min-height:280px;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.8;color:var(--text-sub);resize:vertical;"></textarea>
+    </div>
+    <div class="tab-content" id="tab-summary"></div>
+    <div class="tab-content" id="tab-transcript"></div>
+  </div>
+
+  <button onclick="studyFlashcards()" id="studyBtn" style="display:none;width:100%;margin-top:14px;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Study Flashcards</button>
+
+  <!-- Textbook integration -->
+  <div id="textbookSection" style="margin-top:14px;display:none;">
+    <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:0.04em;">ADD TEXTBOOK CONTENT</div>
+    <textarea id="textbookInput" placeholder="Paste text from your textbook here and Octis will combine it with the lecture to create enhanced study materials..." style="width:100%;min-height:140px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);resize:vertical;outline:none;line-height:1.7;transition:background var(--transition),border-color var(--transition),color var(--transition);"></textarea>
+    <button onclick="submitTextbook()" style="width:100%;margin-top:10px;padding:14px;background:var(--teal,#1D9E75);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#0F6E56'" onmouseout="this.style.background='#1D9E75'">✨ Enhance with Textbook</button>
+  </div>
+
+  </div>
+
+  <!-- Study screen -->
+  <div id="study-screen" style="display:none;animation:fade-up 0.4s ease both;">
+    <button class="results-back" onclick="exitStudy()">← Back</button>
+    <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px;" id="studyTitle"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:24px;" id="studyProgress"></div>
+
+    <!-- Card container -->
+    <div id="studyCardWrap" style="perspective:1000px;margin-bottom:20px;">
+      <div id="studyCard" style="
+        width:100%;min-height:220px;
+        position:relative;
+        transform-style:preserve-3d;
+        transition:transform 0.55s cubic-bezier(0.4,0,0.2,1);
+        cursor:pointer;
+      ">
+        <!-- Front -->
+        <div id="cardFront" style="
+          position:absolute;width:100%;min-height:220px;
+          backface-visibility:hidden;-webkit-backface-visibility:hidden;
+          background:var(--card);border:1px solid var(--border);border-radius:20px;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:32px 28px;text-align:center;
+          transition:background var(--transition),border-color var(--transition);
+        ">
+          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:var(--muted);margin-bottom:16px;">QUESTION</div>
+          <div id="cardQuestion" style="font-size:18px;font-weight:500;color:var(--text);line-height:1.5;transition:color var(--transition);"></div>
+        </div>
+        <!-- Back -->
+        <div id="cardBack" style="
+          position:absolute;width:100%;min-height:220px;
+          backface-visibility:hidden;-webkit-backface-visibility:hidden;
+          transform:rotateY(180deg);
+          background:var(--blue);border-radius:20px;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:32px 28px;text-align:center;
+        ">
+          <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;color:rgba(255,255,255,0.6);margin-bottom:16px;">ANSWER</div>
+          <div id="cardAnswer" style="font-size:17px;color:#fff;line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flip button (shown before flip) -->
+    <div id="flipArea" style="text-align:center;">
+      <button onclick="flipCard()" id="flipBtn" style="
+        padding:14px 40px;background:var(--blue);color:#fff;
+        border:none;border-radius:12px;font-family:'DM Sans',sans-serif;
+        font-size:15px;font-weight:600;cursor:pointer;
+        transition:background 0.2s,transform 0.15s;margin-bottom:10px;
+      " onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Flip</button>
+
+      <!-- Edit + Disable row -->
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:8px;">
+        <button onclick="editCard()" style="padding:8px 20px;background:transparent;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='transparent'">✏ Edit</button>
+        <button onclick="disableCard()" style="padding:8px 20px;background:transparent;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--muted);cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='transparent'">⊘ Disable</button>
+      </div>
+    </div>
+
+    <!-- Rating buttons (shown after flip) -->
+    <div id="ratingArea" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <button onclick="rateCard('forgot')" style="padding:14px 8px;background:#FCEBEB;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#A32D2D;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#F7C1C1'" onmouseout="this.style.background='#FCEBEB'">😟 Totally Forgot</button>
+        <button onclick="rateCard('somewhat')" style="padding:14px 8px;background:#FAEEDA;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#854F0B;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#FAC775'" onmouseout="this.style.background='#FAEEDA'">🤔 Somewhat Remember</button>
+        <button onclick="rateCard('remember')" style="padding:14px 8px;background:#EAF3DE;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#3B6D11;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#C0DD97'" onmouseout="this.style.background='#EAF3DE'">✅ Completely Remember</button>
+      </div>
+    </div>
+
+    <!-- Edit modal -->
+    <div id="editModal" style="display:none;margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;transition:background var(--transition),border-color var(--transition);">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;">QUESTION</div>
+      <textarea id="editQ" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);resize:vertical;min-height:60px;outline:none;margin-bottom:12px;transition:background var(--transition),border-color var(--transition),color var(--transition);"></textarea>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;">ANSWER</div>
+      <textarea id="editA" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);resize:vertical;min-height:60px;outline:none;margin-bottom:14px;transition:background var(--transition),border-color var(--transition),color var(--transition);"></textarea>
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveCardEdit()" style="flex:1;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Save</button>
+        <button onclick="cancelCardEdit()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Done state -->
+    <div id="studyDone" style="display:none;text-align:center;padding:40px 20px;">
+      <div style="font-size:40px;margin-bottom:16px;">🎉</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);margin-bottom:8px;">All done!</div>
+      <div style="font-size:14px;color:var(--muted);margin-bottom:24px;">You've reviewed all your flashcards.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:300px;margin:0 auto;">
+        <button onclick="studyFlashcards()" style="padding:12px 32px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Study Again</button>
+        <button onclick="exitStudy()" style="padding:12px 32px;background:transparent;color:var(--blue);border:1px solid var(--blue);border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='transparent'">Back to Notes</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── State ───────────────────────────────────────────────────
+  let isRecording = false;
+  let isPaused    = false;
+  let pollTimer   = null;
+  let isDark      = false;
+
+  // ── Theme toggle ────────────────────────────────────────────
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    isDark = !isDark;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : '');
+  });
+
+  // ── History ─────────────────────────────────────────────────
+  async function loadHistory() {
+    const res  = await fetch('/api/history');
+    const data = await res.json();
+    const list = document.getElementById('historyList');
+
+    if (!data.length) {
+      list.innerHTML = '<div class="history-empty">No recordings yet. Start your first lecture above!</div>';
+      return;
+    }
+
+    list.innerHTML = [...data].reverse().map((e, i) => `
+      <div class="history-card" onclick="openHistory(${data.length - 1 - i})">
+        <div class="history-info">
+          <div class="history-name">${e.name}</div>
+          <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration}</div>
+        </div>
+        <span class="history-arrow">›</span>
+      </div>
+    `).join('');
+  }
+
+  loadHistory();
+
+  // ── Mic press ────────────────────────────────────────────────
+  async function onMicPress() {
+    console.log('mic pressed');
+    if (isRecording) { console.log('already recording'); return; }
+
+    console.log('calling /api/start...');
+    try {
+      const res = await fetch('/api/start', { method: 'POST' });
+      console.log('response status:', res.status);
+      const data = await res.json();
+      console.log('response data:', data);
+      if (data.error) { 
+        document.getElementById('statusText').textContent = data.error; 
+        console.log('error from server:', data.error);
+        return; 
+      }
+    } catch(e) {
+      console.log('fetch failed:', e);
+      return;
+    }
+
+    isRecording = true;
+    isPaused    = false;
+
+    // Card → coral
+    const card = document.getElementById('recordCard');
+    card.classList.add('recording');
+    document.getElementById('cardTitle').textContent    = 'Recording in progress';
+    document.getElementById('cardSubtitle').textContent = 'Listening to your lecture…';
+    document.getElementById('tapLabel').style.display   = 'none';
+    document.getElementById('micBtn').style.display = 'none';
+
+    // Show wave bars
+    document.getElementById('waveBars').classList.add('active');
+
+    // Animate split buttons open
+    setTimeout(() => {
+      document.getElementById('pauseBtn').classList.add('visible');
+      document.getElementById('stopBtn').classList.add('visible');
+    }, 50);
+
+    // Hide history, show transcript
+    document.getElementById('historySection').style.display  = 'none';
+    document.getElementById('transcriptSection').classList.add('visible');
+    document.getElementById('transcriptText').textContent    = '';
+
+    // ── SSE stream for smooth word-by-word typing ─────────────
+    if (window._typingSource) {
+      window._typingSource.close();
+    }
+    window._typingSource = new EventSource('/api/words');
+    window._typingSource.onmessage = (e) => {
+      const p = document.getElementById('transcriptText');
+      p.textContent += (p.textContent ? ' ' : '') + e.data;
+      const box = document.getElementById('transcriptSection');
+      box.scrollTop = box.scrollHeight;
+    };
+    window._typingSource.onerror = () => {
+      window._typingSource.close();
+    };
+
+    startPolling();
+  }
+
+  // ── Pause ────────────────────────────────────────────────────
+  async function onPause() {
+    const res  = await fetch('/api/pause', { method: 'POST' });
+    const data = await res.json();
+    isPaused   = data.paused;
+
+    const card = document.getElementById('recordCard');
+    if (isPaused) {
+      card.classList.remove('recording');
+      card.classList.add('paused');
+      document.getElementById('cardTitle').textContent    = 'Recording paused';
+      document.getElementById('cardSubtitle').textContent = 'Tap pause to resume';
+      document.getElementById('pauseIcon').textContent    = '▶';
+      document.getElementById('waveBars').classList.remove('active');
+    } else {
+      card.classList.remove('paused');
+      card.classList.add('recording');
+      document.getElementById('cardTitle').textContent    = 'Recording in progress';
+      document.getElementById('cardSubtitle').textContent = 'Listening to your lecture…';
+      document.getElementById('pauseIcon').textContent    = '⏸';
+      document.getElementById('waveBars').classList.add('active');
+    }
+  }
+
+  // ── Stop ─────────────────────────────────────────────────────
+  async function onStop() {
+    isRecording = false;
+
+    // Close SSE word stream
+    if (window._typingSource) {
+      window._typingSource.close();
+      window._typingSource = null;
+    }
+
+    // Animate split buttons closed
+    document.getElementById('pauseBtn').classList.remove('visible');
+    document.getElementById('stopBtn').classList.remove('visible');
+
+    document.getElementById('waveBars').classList.remove('active');
+
+    const card = document.getElementById('recordCard');
+    card.classList.remove('recording', 'paused');
+    document.getElementById('cardTitle').textContent    = 'Generating notes…';
+    document.getElementById('cardSubtitle').textContent = 'Claude is processing your lecture';
+    document.getElementById('tapLabel').textContent     = 'PLEASE WAIT';
+    document.getElementById('micBtn').style.display     = 'none';
+    document.getElementById('micBtn').classList.add('generating');
+
+    document.getElementById('progressWrap').classList.add('visible');
+
+    await fetch('/api/stop', { method: 'POST' });
+  }
+
+  // ── Poll for status ──────────────────────────────────────────
+  function startPolling() {
+    pollTimer = setInterval(async () => {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+
+      // Update status
+      if (data.status) {
+        document.getElementById('statusText').textContent = data.status;
+      }
+
+      // Results ready
+      if (data.results) {
+        clearInterval(pollTimer);
+        data.results._index = -1;
+        showResults(data.results);
+      }
+
+      // No speech or error — stop spinning and reset
+      if (!data.generating && !data.recording && !data.results) {
+        clearInterval(pollTimer);
+        document.getElementById('progressWrap').classList.remove('visible');
+        document.getElementById('statusText').textContent = '';
+        resetCard();
+        loadHistory();
+      }
+
+    }, 1500);
+  }
+
+  // ── Textbook integration ─────────────────────────────────────
+  async function submitTextbook() {
+    const text = document.getElementById('textbookInput').value.trim();
+    if (!text) { alert('Please paste some textbook content first.'); return; }
+
+    document.getElementById('textbookSection').style.display = 'none';
+    document.getElementById('progressWrap').classList.add('visible');
+
+    await fetch('/api/textbook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        index: window._currentResultsIndex ?? -1,
+        text:  text,
+      })
+    });
+
+    // Poll for results
+    pollTimer = setInterval(async () => {
+      const res  = await fetch('/api/status');
+      const data = await res.json();
+      if (data.results) {
+        clearInterval(pollTimer);
+        data.results._index = -1;
+        showResults(data.results);
+      }
+      if (!data.generating && !data.recording && !data.results) {
+        clearInterval(pollTimer);
+        document.getElementById('progressWrap').classList.remove('visible');
+        document.getElementById('textbookSection').style.display = 'block';
+      }
+    }, 1500);
+  }
+  async function openHistory(index) {
+    const res  = await fetch(`/api/history/${index}`);
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    data._index = index;
+    showResults(data);
+  }
+
+  // ── Edit title ───────────────────────────────────────────────
+  function startEditTitle() {
+    const titleEl = document.getElementById('resultsTitle');
+    const inputEl = document.getElementById('titleInput');
+    titleEl.style.display = 'none';
+    inputEl.style.display = 'block';
+    inputEl.focus();
+    inputEl.select();
+  }
+
+  async function saveTitle() {
+    const titleEl  = document.getElementById('resultsTitle');
+    const inputEl  = document.getElementById('titleInput');
+    const newName  = inputEl.value.trim() || document.getElementById('titleText').textContent;
+
+    document.getElementById('titleText').textContent = newName;
+    inputEl.style.display  = 'none';
+    titleEl.style.display  = '';
+
+    // Save to history file on server
+    await fetch('/api/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        index: window._currentResultsIndex,
+        name:  newName,
+      })
+    });
+  }
+
+  // ── Show results ─────────────────────────────────────────────
+  function showResults(results) {
+    document.getElementById('progressWrap').classList.remove('visible');
+    document.getElementById('home-screen').style.display     = 'none';
+    document.getElementById('study-screen').style.display    = 'none';
+    const rs = document.getElementById('results-screen');
+    rs.style.display = 'block';
+    rs.classList.add('visible');
+
+    const entry = results.entry || results;
+    const name = entry.name || 'Lecture';
+    document.getElementById('titleText').textContent   = name;
+    document.getElementById('titleInput').value        = name;
+    document.getElementById('currentHistoryIndex')     && (document.getElementById('currentHistoryIndex').value = results._index ?? -1);
+    window._currentResultsEntry = entry;
+    window._currentResultsIndex = results._index ?? -1;
+    document.getElementById('resultsMeta').textContent  =
+      `Saved · ${entry.date || ''} · ${entry.duration || ''}`;
+
+    document.getElementById('tab-notes').textContent          = results.notes      || 'No notes generated.';
+    document.getElementById('flashcardsEdit').value            = results.flashcards || 'No flashcards generated.';
+    document.getElementById('tab-summary').textContent         = results.summary    || 'No summary generated.';
+    document.getElementById('tab-transcript').textContent      = results.transcript || 'No transcript available.';
+    document.getElementById('textbookSection').style.display   = 'block';
+    document.getElementById('textbookInput').value             = '';
+
+    // Reset to first tab and hide study button
+    document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+    document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i===0));
+    document.getElementById('studyBtn').style.display = 'none';
+  }
+
+  // ── Tab switching ────────────────────────────────────────────
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    document.getElementById('studyBtn').style.display      = (name === 'flashcards') ? 'block' : 'none';
+    document.getElementById('textbookSection').style.display = (name === 'transcript') ? 'none' : 'block';
+  }
+
+  // ── Reset card to home state ─────────────────────────────────
+  function resetCard() {
+    if (window._typingSource) {
+      window._typingSource.close();
+      window._typingSource = null;
+    }
+    const card = document.getElementById('recordCard');
+    card.classList.remove('recording', 'paused');
+    document.getElementById('cardTitle').textContent    = 'Record a new class';
+    document.getElementById('cardSubtitle').textContent = 'Tap below to start capturing your lecture';
+    document.getElementById('tapLabel').style.display   = '';
+    document.getElementById('tapLabel').textContent     = 'TAP TO START RECORDING';
+    document.getElementById('micBtn').style.display     = '';
+    document.getElementById('micBtn').classList.remove('generating');
+    document.getElementById('waveBars').classList.remove('active');
+    document.getElementById('pauseBtn').classList.remove('visible');
+    document.getElementById('stopBtn').classList.remove('visible');
+    document.getElementById('transcriptSection').classList.remove('visible');
+    document.getElementById('historySection').style.display = '';
+    document.getElementById('progressWrap').classList.remove('visible');
+    isRecording = false;
+    isPaused    = false;
+  }
+
+  // ── Back to home ─────────────────────────────────────────────
+  function backHome() {
+    document.getElementById('results-screen').classList.remove('visible');
+    document.getElementById('results-screen').style.display  = 'none';
+    document.getElementById('study-screen').style.display    = 'none';
+    document.getElementById('home-screen').style.display     = '';
+    document.getElementById('statusText').textContent        = '';
+    document.getElementById('studyBtn').style.display        = 'none';
+    document.getElementById('textbookSection').style.display = 'none';
+    resetCard();
+    loadHistory();
+  }
+  // ── Study flashcards ─────────────────────────────────────────
+  let studyCards    = [];   // [{q, a, disabled}]
+  let studyQueue    = [];   // indices of cards to show
+  let studyIndex    = 0;    // current position in queue
+  let isFlipped     = false;
+  let reviewTimers  = [];
+
+  function parseFlashcards(text) {
+    const cards = [];
+    const lines = text.split('\n');
+    let current = null;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('Q:')) {
+        if (current) cards.push(current);
+        current = { q: trimmed.slice(2).trim(), a: '', disabled: false };
+      } else if (trimmed.startsWith('A:') && current) {
+        current.a = trimmed.slice(2).trim();
+      }
+    }
+    if (current) cards.push(current);
+    return cards;
+  }
+
+  function studyFlashcards() {
+    const text = document.getElementById('flashcardsEdit').value;
+    studyCards = parseFlashcards(text);
+
+    if (!studyCards.length) {
+      alert('No flashcards found. Make sure they follow the Q: / A: format.');
+      return;
+    }
+
+    studyQueue = studyCards.map((_, i) => i).filter(i => !studyCards[i].disabled);
+    studyIndex = 0;
+    reviewTimers = [];
+    rememberedCards = new Set();
+
+    document.getElementById('results-screen').style.display = 'none';
+    document.getElementById('results-screen').classList.remove('visible');
+    document.getElementById('studyBtn').style.display       = 'none';
+    document.getElementById('study-screen').style.display   = 'block';
+    document.getElementById('studyTitle').textContent =
+      document.getElementById('titleText').textContent || 'Flashcards';
+
+    showStudyCard();
+  }
+
+  function showStudyCard() {
+    // Clear any done state
+    document.getElementById('studyDone').style.display      = 'none';
+    document.getElementById('studyCardWrap').style.display  = '';
+    document.getElementById('flipArea').style.display       = '';
+    document.getElementById('ratingArea').style.display     = 'none';
+    document.getElementById('editModal').style.display      = 'none';
+
+    const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
+    if (!activeQueue.length) {
+      showStudyDone();
+      return;
+    }
+
+    if (studyIndex >= activeQueue.length) studyIndex = 0;
+    const idx = activeQueue[studyIndex];
+    const card = studyCards[idx];
+
+    document.getElementById('cardQuestion').textContent = card.q;
+    document.getElementById('cardAnswer').textContent   = card.a;
+
+    const total   = studyCards.filter(c => !c.disabled).length;
+    const current = studyIndex + 1;
+    document.getElementById('studyProgress').textContent =
+      `Card ${current} of ${total}`;
+
+    // Reset flip
+    isFlipped = false;
+    document.getElementById('studyCard').style.transform = 'rotateY(0deg)';
+    document.getElementById('ratingArea').style.display  = 'none';
+    document.getElementById('flipArea').style.display    = '';
+  }
+
+  function flipCard() {
+    if (isFlipped) return;
+    isFlipped = true;
+    document.getElementById('studyCard').style.transform = 'rotateY(180deg)';
+    setTimeout(() => {
+      document.getElementById('flipArea').style.display   = 'none';
+      document.getElementById('ratingArea').style.display = 'grid';
+    }, 300);
+  }
+
+  // Track which cards have been completely remembered
+  let rememberedCards = new Set();
+
+  function rateCard(rating) {
+    const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
+    const idx = activeQueue[studyIndex];
+
+    if (rating === 'forgot') {
+      rememberedCards.delete(idx);
+      const t = setTimeout(() => { studyQueue.push(idx); }, 30000);
+      reviewTimers.push(t);
+    } else if (rating === 'somewhat') {
+      rememberedCards.delete(idx);
+      const t = setTimeout(() => { studyQueue.push(idx); }, 60000);
+      reviewTimers.push(t);
+    } else if (rating === 'remember') {
+      rememberedCards.add(idx);
+    }
+
+    // Check if all non-disabled cards are completely remembered
+    const allCards = studyCards.map((_, i) => i).filter(i => !studyCards[i].disabled);
+    const allRemembered = allCards.every(i => rememberedCards.has(i));
+    if (allRemembered) {
+      showStudyDone();
+      return;
+    }
+
+    // Slide next card in
+    const wrap = document.getElementById('studyCardWrap');
+    wrap.style.transition = 'opacity 0.25s, transform 0.25s';
+    wrap.style.opacity    = '0';
+    wrap.style.transform  = 'translateX(40px)';
+
+    setTimeout(() => {
+      studyIndex++;
+      showStudyCard();
+      wrap.style.transition = 'none';
+      wrap.style.opacity    = '0';
+      wrap.style.transform  = 'translateX(-40px)';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          wrap.style.transition = 'opacity 0.3s, transform 0.3s';
+          wrap.style.opacity    = '1';
+          wrap.style.transform  = 'translateX(0)';
+        });
+      });
+    }, 250);
+  }
+
+  function disableCard() {
+    const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
+    const idx = activeQueue[studyIndex];
+    studyCards[idx].disabled = true;
+    rateCard('remember'); // just move on
+  }
+
+  function editCard() {
+    const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
+    const idx = activeQueue[studyIndex];
+    document.getElementById('editQ').value = studyCards[idx].q;
+    document.getElementById('editA').value = studyCards[idx].a;
+    document.getElementById('editModal').style.display = 'block';
+  }
+
+  function saveCardEdit() {
+    const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
+    const idx = activeQueue[studyIndex];
+    studyCards[idx].q = document.getElementById('editQ').value.trim();
+    studyCards[idx].a = document.getElementById('editA').value.trim();
+    document.getElementById('cardQuestion').textContent = studyCards[idx].q;
+    document.getElementById('cardAnswer').textContent   = studyCards[idx].a;
+    document.getElementById('editModal').style.display  = 'none';
+
+    // Sync back to textarea
+    const updated = studyCards.map(c => `Q: ${c.q}\nA: ${c.a}`).join('\n\n');
+    document.getElementById('flashcardsEdit').value = updated;
+  }
+
+  function cancelCardEdit() {
+    document.getElementById('editModal').style.display = 'none';
+  }
+
+  function showStudyDone() {
+    document.getElementById('studyCardWrap').style.display = 'none';
+    document.getElementById('flipArea').style.display      = 'none';
+    document.getElementById('ratingArea').style.display    = 'none';
+    document.getElementById('studyDone').style.display     = 'block';
+    document.getElementById('studyProgress').textContent   = 'Session complete';
+  }
+
+  function exitStudy() {
+    reviewTimers.forEach(t => clearTimeout(t));
+    reviewTimers = [];
+    document.getElementById('study-screen').style.display    = 'none';
+    document.getElementById('results-screen').style.display  = 'block';
+    document.getElementById('results-screen').classList.add('visible');
+    document.getElementById('home-screen').style.display     = 'none';
+  }
+</script>
+</body>
+</html>
