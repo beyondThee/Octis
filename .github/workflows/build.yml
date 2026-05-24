@@ -1,0 +1,174 @@
+name: Build Octis
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+jobs:
+
+  # ── Windows Build ─────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller flask anthropic openai-whisper sounddevice soundfile numpy torch
+
+      - name: Install ffmpeg
+        run: |
+          choco install ffmpeg -y
+
+      - name: Write config.py with API key
+        run: |
+          echo "ANTHROPIC_API_KEY = '${{ secrets.ANTHROPIC_API_KEY }}'" > config.py
+        shell: bash
+
+      - name: Update ffmpeg path in spec
+        run: |
+          $ffmpegPath = (Get-Command ffmpeg).Source
+          $ffprobeDir = Split-Path $ffmpegPath
+          $ffprobePath = Join-Path $ffprobeDir "ffprobe.exe"
+          (Get-Content app_build.spec) `
+            -replace "FFMPEG_BIN.*=.*", "FFMPEG_BIN  = r'$ffmpegPath'" `
+            -replace "FFPROBE_BIN.*=.*", "FFPROBE_BIN = r'$ffprobePath'" |
+            Set-Content app_build.spec
+        shell: powershell
+
+      - name: Build Python backend
+        run: |
+          pyinstaller app_build.spec --noconfirm --distpath dist_python
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm install
+
+      - name: Build Windows installer
+        run: |
+          cd electron
+          npm run build-win
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Octis-Windows
+          path: dist_electron/Octis Setup*.exe
+
+  # ── Mac Build ─────────────────────────────────────────────────
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller flask anthropic openai-whisper sounddevice soundfile numpy torch
+
+      - name: Install ffmpeg
+        run: |
+          brew install ffmpeg
+
+      - name: Write config.py with API key
+        run: |
+          echo "ANTHROPIC_API_KEY = '${{ secrets.ANTHROPIC_API_KEY }}'" > config.py
+
+      - name: Create Mac PyInstaller spec
+        run: |
+          cat > app_build_mac.spec << 'EOF'
+          from PyInstaller.utils.hooks import collect_data_files
+          import subprocess
+
+          block_cipher = None
+
+          ffmpeg_path  = subprocess.check_output(['which', 'ffmpeg']).decode().strip()
+          ffprobe_path = subprocess.check_output(['which', 'ffprobe']).decode().strip()
+
+          whisper_datas = collect_data_files('whisper')
+
+          a = Analysis(
+              ['app.py'],
+              pathex=[],
+              binaries=[
+                  (ffmpeg_path,  '.'),
+                  (ffprobe_path, '.'),
+              ],
+              datas=[
+                  ('templates', 'templates'),
+                  ('static',    'static'),
+                  ('config.py', '.'),
+                  *whisper_datas,
+              ],
+              hiddenimports=[
+                  'flask', 'anthropic', 'whisper',
+                  'sounddevice', 'soundfile', 'numpy',
+                  'torch', 'tiktoken',
+                  'tiktoken_ext', 'tiktoken_ext.openai_public',
+              ],
+              hookspath=[],
+              runtime_hooks=['hook_ffmpeg.py'],
+              excludes=['webview'],
+              cipher=block_cipher,
+              noarchive=False,
+          )
+
+          pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+          exe = EXE(
+              pyz, a.scripts, [],
+              exclude_binaries=True,
+              name='app',
+              debug=False, strip=False, upx=True,
+              console=False,
+          )
+
+          coll = COLLECT(
+              exe, a.binaries, a.zipfiles, a.datas,
+              strip=False, upx=True, upx_exclude=[],
+              name='app',
+          )
+          EOF
+
+      - name: Build Python backend for Mac
+        run: |
+          pyinstaller app_build_mac.spec --noconfirm --distpath dist_python
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Electron dependencies
+        run: |
+          cd electron
+          npm install
+
+      - name: Build Mac DMG
+        run: |
+          cd electron
+          npm run build-mac
+
+      - name: Upload Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Octis-Mac
+          path: dist_electron/*.dmg
