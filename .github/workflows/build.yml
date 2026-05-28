@@ -3,13 +3,58 @@ name: Build Octis
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:   # allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
+
+  # ── Create Release ────────────────────────────────────────────
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          VERSION=$(cat electron/package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Delete existing release if exists
+        run: |
+          gh release delete "v${{ steps.get_version.outputs.version }}" --yes 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: Octis v${{ steps.get_version.outputs.version }}
+          body: |
+            ## Download Octis
+
+            | Platform | Download |
+            |---|---|
+            | Windows | See assets below → Octis-Setup.exe |
+            | Mac | See assets below → Octis.dmg |
+
+            ### Installation
+            **Windows:** Download and run `Octis Setup ${{ steps.get_version.outputs.version }}.exe`
+            **Mac:** Download `Octis-${{ steps.get_version.outputs.version }}.dmg`, open it and drag Octis to Applications
+          draft: false
+          prerelease: false
 
   # ── Windows Build ─────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
+    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -64,15 +109,20 @@ jobs:
           cd electron
           npm run build-win
 
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+      - name: Upload Windows installer to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: Octis-Windows
-          path: dist_electron/Octis Setup*.exe
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: dist_electron/Octis Setup ${{ needs.create-release.outputs.version }}.exe
+          asset_name: Octis-Setup.exe
+          asset_content_type: application/octet-stream
 
   # ── Mac Build ─────────────────────────────────────────────────
   build-mac:
     runs-on: macos-latest
+    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -171,8 +221,13 @@ jobs:
           cd electron
           npm run build-mac
 
-      - name: Upload Mac DMG
-        uses: actions/upload-artifact@v4
+      - name: Upload Mac DMG to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: Octis-Mac
-          path: dist_electron/*.dmg
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: dist_electron/Octis-${{ needs.create-release.outputs.version }}.dmg
+          asset_name: Octis.dmg
+          asset_content_type: application/octet-stream
+
