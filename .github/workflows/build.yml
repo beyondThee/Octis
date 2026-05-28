@@ -109,15 +109,19 @@ jobs:
           cd electron
           npm run build-win
 
-      - name: Upload Windows installer to release
-        uses: actions/upload-release-asset@v1
+      - name: Find and upload Windows installer to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: dist_electron/Octis Setup ${{ needs.create-release.outputs.version }}.exe
-          asset_name: Octis-Setup.exe
-          asset_content_type: application/octet-stream
+        shell: powershell
+        run: |
+          $exeFile = Get-ChildItem -Path dist_electron -Filter "*.exe" | Select-Object -First 1
+          Write-Host "Found EXE: $($exeFile.FullName)"
+          $uploadUrl = "${{ needs.create-release.outputs.upload_url }}" -replace '\{.*\}', ''
+          $uploadUrl = "${uploadUrl}?name=Octis-Setup.exe&label=Octis-Setup.exe"
+          Invoke-RestMethod -Uri $uploadUrl `
+            -Method Post `
+            -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; "Content-Type" = "application/octet-stream" } `
+            -InFile $exeFile.FullName
 
   # ── Mac Build ─────────────────────────────────────────────────
   build-mac:
@@ -221,13 +225,14 @@ jobs:
           cd electron
           npm run build-mac
 
-      - name: Upload Mac DMG to release
-        uses: actions/upload-release-asset@v1
+      - name: Find and upload Mac DMG to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: dist_electron/Octis-${{ needs.create-release.outputs.version }}.dmg
-          asset_name: Octis.dmg
-          asset_content_type: application/octet-stream
+        run: |
+          DMG_FILE=$(find dist_electron -name "*.dmg" | head -1)
+          echo "Found DMG: $DMG_FILE"
+          curl -s -H "Authorization: token $GITHUB_TOKEN" \
+               -H "Content-Type: application/octet-stream" \
+               --data-binary @"$DMG_FILE" \
+               "${{ needs.create-release.outputs.upload_url }}?name=Octis.dmg&label=Octis.dmg"
 
