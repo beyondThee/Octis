@@ -39,7 +39,9 @@ state = {
     "record_start": None,
 }
 
-HISTORY_FILE = "lecture_history.json"
+OCTIS_DATA_DIR = os.path.join(os.path.expanduser("~"), "Documents", "Octis")
+os.makedirs(OCTIS_DATA_DIR, exist_ok=True)
+HISTORY_FILE = os.path.join(OCTIS_DATA_DIR, "lecture_history.json")
 
 
 def load_history():
@@ -165,7 +167,7 @@ def stream_words():
             if state.get("typing_queue"):
                 word = state["typing_queue"].pop(0)
                 yield f"data: {word}\n\n"
-                time.sleep(0.6)   # 80ms between words — smooth typing speed
+                time.sleep(0.08)   # 80ms between words — smooth typing speed
             else:
                 time.sleep(0.05)
 
