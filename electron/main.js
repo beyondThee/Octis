@@ -1,23 +1,30 @@
 /**
  * main.js
  * ────────────────────────────────────────────────────────────
- * Electron entry point for Study Companion.
- * 
- * What this does:
- *   1. Finds the bundled Python backend (dist_python/app.exe)
- *   2. Starts it as a background process
- *   3. Waits for Flask to be ready on port 5000
- *   4. Opens a clean desktop window pointing to http://127.0.0.1:5000
- *   5. When the window closes, kills the Python process cleanly
+ * Electron entry point for Octis.
  */
 
 const { app, BrowserWindow, shell, Menu } = require('electron');
 const { spawn }                      = require('child_process');
 const path                           = require('path');
 const http                           = require('http');
+const { autoUpdater }                = require('electron-updater');
 
 let mainWindow   = null;
 let pythonProcess = null;
+
+// ── Silent auto updater ───────────────────────────────────────
+autoUpdater.autoDownload         = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+  autoUpdater.checkForUpdates().catch(() => {});
+  autoUpdater.on('update-downloaded', () => {
+    autoUpdater.quitAndInstall(true, true);
+  });
+  autoUpdater.on('error', () => {});
+}
 
 // ── Find the Python backend ───────────────────────────────────
 function getPythonPath() {
@@ -133,7 +140,8 @@ function createWindow() {
 
 // ── App lifecycle ─────────────────────────────────────────────
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);  // removes File/Edit/View/Window/Help
+  Menu.setApplicationMenu(null);
+  setupAutoUpdater();
   startPython();
 
   try {

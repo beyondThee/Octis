@@ -11,6 +11,11 @@
   "build": {
     "appId": "com.octis.app",
     "productName": "Octis",
+    "publish": {
+      "provider": "github",
+      "owner": "beyondThee",
+      "repo": "Octis"
+    },
     "directories": {
       "output": "../dist_electron"
     },
@@ -43,6 +48,9 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": false
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
   },
   "devDependencies": {
     "electron": "^31.0.0",

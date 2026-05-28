@@ -58,6 +58,8 @@ jobs:
           npm install
 
       - name: Build Windows installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd electron
           npm run build-win
@@ -163,6 +165,8 @@ jobs:
           npm install
 
       - name: Build Mac DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd electron
           npm run build-mac
