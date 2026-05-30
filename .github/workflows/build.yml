@@ -207,6 +207,8 @@ jobs:
       - name: Build Python backend for Mac
         run: |
           pyinstaller app_build_mac.spec --noconfirm --distpath dist_python
+          echo "Python build complete"
+          ls -la dist_python/
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -224,6 +226,14 @@ jobs:
         run: |
           cd electron
           npm run build-mac
+          echo "Electron build complete"
+          ls -la ../dist_electron/
+
+      - name: List dist_electron contents
+        run: |
+          echo "Files in dist_electron:"
+          ls -la dist_electron/ || echo "dist_electron directory not found!"
+          find dist_electron -name "*.dmg" || echo "No DMG files found!"
 
       - name: Find and upload Mac DMG to release
         env:
