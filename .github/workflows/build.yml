@@ -239,10 +239,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          DMG_FILE=$(find dist_electron -name "*.dmg" | head -1)
-          echo "Found DMG: $DMG_FILE"
-          curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          DMG_FILE=$(find dist_electron -name "*.dmg" | grep -v blockmap | head -1)
+          echo "Uploading: $DMG_FILE"
+          UPLOAD_URL="${{ needs.create-release.outputs.upload_url }}"
+          CLEAN_URL=$(echo "$UPLOAD_URL" | sed 's/{?name,label}//')
+          curl -f -H "Authorization: token $GITHUB_TOKEN" \
                -H "Content-Type: application/octet-stream" \
                --data-binary @"$DMG_FILE" \
-               "${{ needs.create-release.outputs.upload_url }}?name=Octis.dmg&label=Octis.dmg"
+               "${CLEAN_URL}?name=Octis.dmg&label=Octis.dmg"
+          echo "Upload complete"
 
