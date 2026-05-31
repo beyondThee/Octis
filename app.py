@@ -255,63 +255,11 @@ def add_textbook():
             state["generating"] = True
             state["status"]     = "Combining lecture and textbook content..."
 
-            # Only regenerate notes and flashcards — leave summary alone
-            combined = f"""LECTURE TRANSCRIPT:
-{transcript}
+            generator = NoteGenerator()
+            results   = generator.generate_with_textbook(transcript, textbook_text)
 
-TEXTBOOK CONTENT:
-{textbook_text}
-"""
-            from anthropic import Anthropic
-            import config
-
-            client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
-
-            prompt = f"""You are a helpful study assistant. Below is a lecture transcript combined with related textbook content.
-
-Please generate the following TWO things only:
-
-1. ORGANIZED NOTES
-Create enhanced, detailed notes that combine insights from both the lecture AND the textbook. Group by topic with headings and bullet points.
-
-2. FLASHCARDS
-Create a comprehensive set of 15-25 flashcards in this exact format:
-Q: [question]
-A: [answer]
-
-Include key terms, definitions, and concepts from BOTH the lecture and textbook.
-
-Format your response EXACTLY like this:
-
-=== NOTES ===
-[your notes here]
-
-=== FLASHCARDS ===
-[your flashcards here]
-
-Here is the content:
-
-{combined}
-"""
-            message = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            response = message.content[0].text
-            new_notes      = ""
-            new_flashcards = ""
-
-            if "=== NOTES ===" in response:
-                parts = response.split("=== NOTES ===", 1)
-                remainder = parts[1]
-                if "=== FLASHCARDS ===" in remainder:
-                    notes_part, flashcards_part = remainder.split("=== FLASHCARDS ===", 1)
-                    new_notes      = notes_part.strip()
-                    new_flashcards = flashcards_part.strip()
-                else:
-                    new_notes = remainder.strip()
+            new_notes      = results.get("notes", "")
+            new_flashcards = results.get("flashcards", "")
 
             # Save updated notes and flashcards to the SAME folder
             if new_notes:

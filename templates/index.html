@@ -883,7 +883,9 @@
 
   // ── Poll for status ──────────────────────────────────────────
   function startPolling() {
+    let pollCount = 0;
     pollTimer = setInterval(async () => {
+      pollCount++;
       const res  = await fetch('/api/status');
       const data = await res.json();
 
@@ -900,7 +902,8 @@
       }
 
       // No speech or error — stop spinning and reset
-      if (!data.generating && !data.recording && !data.results) {
+      // Wait at least 3 polls before checking to avoid race condition
+      if (pollCount > 3 && !data.generating && !data.recording && !data.results) {
         clearInterval(pollTimer);
         document.getElementById('progressWrap').classList.remove('visible');
         document.getElementById('statusText').textContent = '';

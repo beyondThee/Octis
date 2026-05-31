@@ -4,7 +4,7 @@ output_saver.py
 Saves lecture materials to a dedicated folder in the user's home directory.
 This folder survives app updates, reinstalls, and uninstalls completely.
 
-Windows: C:\Users\YourName\Documents\Octis\
+Windows: C:/Users/YourName/Documents/Octis/
 Mac:     /Users/YourName/Documents/Octis/
 """
 

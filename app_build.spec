@@ -28,7 +28,7 @@ a = Analysis(
     ],
     hiddenimports=[
         'flask',
-        'anthropic',
+        'requests',
         'whisper',
         'sounddevice',
         'soundfile',
