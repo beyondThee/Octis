@@ -36,18 +36,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
-          release_name: Octis v${{ steps.get_version.outputs.version }}
+          release_name: Quick Notes v${{ steps.get_version.outputs.version }}
           body: |
-            ## Download Octis
+            ## Download Quick Notes
 
             | Platform | Download |
             |---|---|
-            | Windows | See assets below → Octis-Setup.exe |
-            | Mac | See assets below → Octis.dmg |
+            | Windows | See assets below → QuickNotes-Setup.exe |
+            | Mac | See assets below → QuickNotes.dmg |
 
             ### Installation
-            **Windows:** Download and run `Octis Setup ${{ steps.get_version.outputs.version }}.exe`
-            **Mac:** Download `Octis-${{ steps.get_version.outputs.version }}.dmg`, open it and drag Octis to Applications
+            **Windows:** Download and run `Quick Notes Setup ${{ steps.get_version.outputs.version }}.exe`
+            **Mac:** Download `Quick Notes-${{ steps.get_version.outputs.version }}.dmg`, open it and drag Quick Notes to Applications
           draft: false
           prerelease: false
 
@@ -248,4 +248,3 @@ jobs:
                --data-binary @"$DMG_FILE" \
                "${CLEAN_URL}?name=Octis.dmg&label=Octis.dmg"
           echo "Upload complete"
-

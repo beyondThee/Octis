@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Study Companion</title>
+<title>Quick Notes</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   /* ── Reset & base ─────────────────────────────────────────── */
@@ -497,12 +497,50 @@
 </head>
 <body>
 
+<!-- ── Trial expired screen ──────────────────────────────────── -->
+<div id="trial-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:1000;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="text-align:center;padding:40px;max-width:400px;width:100%;">
+    <img src="/static/icon.png" style="width:80px;height:80px;border-radius:20px;object-fit:cover;margin-bottom:24px;" alt="Quick Notes"/>
+    <div style="font-family:'DM Serif Display',serif;font-size:26px;color:var(--text);margin-bottom:8px;transition:color var(--transition);">Your trial has ended</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:12px;line-height:1.6;transition:color var(--transition);">Your free trial has expired. Your recorded lectures are safe and waiting for you.</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:32px;transition:color var(--transition);">Purchase a plan to continue using Quick Notes.</div>
+    <a href="https://quicknotesai.com" target="_blank" style="display:block;width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;box-sizing:border-box;margin-bottom:12px;">Get Quick Notes →</a>
+    <div style="font-size:12px;color:var(--muted);">Already purchased? Sign in below</div>
+    <input id="upgradeEmail" type="email" placeholder="Email address"
+      style="width:100%;padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;margin-top:10px;box-sizing:border-box;"/>
+    <input id="upgradePassword" type="password" placeholder="Password"
+      style="width:100%;padding:12px 16px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;margin-top:8px;box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter') activateUpgrade()"/>
+    <button onclick="activateUpgrade()" style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:12px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);cursor:pointer;margin-top:8px;transition:background 0.2s;" onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='transparent'">Sign In</button>
+    <div id="upgradeError" style="color:#D85A30;font-size:13px;margin-top:8px;min-height:18px;"></div>
+  </div>
+</div>
+<div id="license-screen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:1000;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="text-align:center;padding:40px;max-width:400px;width:100%;">
+    <img src="/static/icon.png" style="width:80px;height:80px;border-radius:20px;object-fit:cover;margin-bottom:24px;" alt="Quick Notes"/>
+    <div style="font-family:'DM Serif Display',serif;font-size:28px;color:var(--text);margin-bottom:8px;transition:color var(--transition);">Welcome to Quick Notes</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:32px;transition:color var(--transition);">Sign in to your account to continue</div>
+
+    <input id="loginEmail" type="email" placeholder="Email address"
+      style="width:100%;padding:14px 18px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;margin-bottom:10px;transition:border-color 0.2s,background var(--transition),color var(--transition);box-sizing:border-box;"/>
+
+    <input id="loginPassword" type="password" placeholder="Password"
+      style="width:100%;padding:14px 18px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;margin-bottom:12px;transition:border-color 0.2s,background var(--transition),color var(--transition);box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter') doLogin()"/>
+
+    <button onclick="doLogin()" id="loginBtn" style="width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;margin-bottom:12px;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Sign In</button>
+
+    <div style="font-size:13px;color:var(--muted);">Don't have an account? <a href="https://quicknotesai.com" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:500;">Start free trial</a></div>
+    <div id="loginError" style="color:#D85A30;font-size:13px;margin-top:12px;min-height:18px;"></div>
+  </div>
+</div>
+
 <!-- ── Navbar ────────────────────────────────────────────────── -->
 <nav>
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Octis</span>
+  <span class="nav-title">Quick Notes</span>
   <button class="theme-btn" id="themeBtn" title="Toggle theme">
     <!-- Moon icon -->
     <svg class="icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -613,6 +651,13 @@
       <button class="tab-btn" onclick="switchTab('flashcards', this)">Flashcards</button>
       <button class="tab-btn" onclick="switchTab('summary', this)">Summary</button>
       <button class="tab-btn" onclick="switchTab('transcript', this)">Transcript</button>
+      <button class="tab-btn" onclick="switchTab('test', this)">Practice Test</button>
+      <button class="tab-btn" id="weakspotTabBtn"
+        onclick="weakSpotUnlocked ? switchTab('weakspot', this) : null"
+        title="Complete flashcards and practice test to unlock"
+        style="opacity:0.5;cursor:not-allowed;">
+        🔒 Weak Spots
+      </button>
     </div>
 
     <div class="tab-content active" id="tab-notes"></div>
@@ -621,6 +666,24 @@
     </div>
     <div class="tab-content" id="tab-summary"></div>
     <div class="tab-content" id="tab-transcript"></div>
+
+    <!-- Practice Test tab -->
+    <div class="tab-content" id="tab-test">
+      <div id="testNotStarted" style="text-align:center;padding:32px 0;">
+        <div style="font-size:15px;color:var(--text-sub);margin-bottom:20px;line-height:1.6;">AI will generate a custom practice test from your lecture.<br>Questions include multiple choice, true/false, and open-ended.</div>
+        <button onclick="startPracticeTest()" style="padding:14px 40px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Generate Practice Test</button>
+      </div>
+      <div id="testLoading" style="display:none;text-align:center;padding:32px 0;">
+        <div style="font-size:14px;color:var(--muted);">Generating your practice test...</div>
+      </div>
+      <div id="testQuestions" style="display:none;"></div>
+      <div id="testResults" style="display:none;"></div>
+    </div>
+
+    <!-- Weak Spot tab -->
+    <div class="tab-content" id="tab-weakspot">
+      <div id="weakspotContent"></div>
+    </div>
   </div>
 
   <button onclick="studyFlashcards()" id="studyBtn" style="display:none;width:100%;margin-top:14px;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Study Flashcards</button>
@@ -628,7 +691,7 @@
   <!-- Textbook integration -->
   <div id="textbookSection" style="margin-top:14px;display:none;">
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:0.04em;">ADD TEXTBOOK CONTENT</div>
-    <textarea id="textbookInput" placeholder="Paste text from your textbook here and Octis will combine it with the lecture to create enhanced study materials..." style="width:100%;min-height:140px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);resize:vertical;outline:none;line-height:1.7;transition:background var(--transition),border-color var(--transition),color var(--transition);"></textarea>
+    <textarea id="textbookInput" placeholder="Paste text from your textbook here and Quick Notes will combine it with the lecture to create enhanced study materials..." style="width:100%;min-height:140px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);resize:vertical;outline:none;line-height:1.7;transition:background var(--transition),border-color var(--transition),color var(--transition);"></textarea>
     <button onclick="submitTextbook()" style="width:100%;margin-top:10px;padding:14px;background:var(--teal,#1D9E75);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#0F6E56'" onmouseout="this.style.background='#1D9E75'">✨ Enhance with Textbook</button>
   </div>
 
@@ -824,8 +887,7 @@
     window._typingSource.onerror = () => {
       window._typingSource.close();
     };
-
-    startPolling();
+    // Note: polling starts only after stop is clicked, not here
   }
 
   // ── Pause ────────────────────────────────────────────────────
@@ -879,6 +941,7 @@
     document.getElementById('progressWrap').classList.add('visible');
 
     await fetch('/api/stop', { method: 'POST' });
+    startPolling();
   }
 
   // ── Poll for status ──────────────────────────────────────────
@@ -1021,10 +1084,10 @@
   function switchTab(name, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
     document.getElementById('tab-' + name).classList.add('active');
-    document.getElementById('studyBtn').style.display      = (name === 'flashcards') ? 'block' : 'none';
-    document.getElementById('textbookSection').style.display = (name === 'transcript') ? 'none' : 'block';
+    document.getElementById('studyBtn').style.display        = (name === 'flashcards') ? 'block' : 'none';
+    document.getElementById('textbookSection').style.display = (name === 'notes' || name === 'transcript') ? 'block' : 'none';
   }
 
   // ── Reset card to home state ─────────────────────────────────
@@ -1252,6 +1315,83 @@
     document.getElementById('results-screen').classList.add('visible');
     document.getElementById('home-screen').style.display     = 'none';
   }
+
+  // ── License check on startup ─────────────────────────────────
+  async function checkLicense() {
+    const res  = await fetch('/api/license/status');
+    const data = await res.json();
+    if (data.trial_ended) {
+      document.getElementById('trial-screen').style.display = 'flex';
+    } else if (!data.licensed) {
+      document.getElementById('license-screen').style.display = 'flex';
+    }
+  }
+
+  // ── Login ─────────────────────────────────────────────────────
+  async function doLogin() {
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    if (!email || !password) {
+      document.getElementById('loginError').textContent = 'Please enter your email and password.';
+      return;
+    }
+
+    const btn = document.getElementById('loginBtn');
+    btn.textContent = 'Signing in...';
+    btn.disabled    = true;
+
+    const res  = await fetch('/api/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (data.valid) {
+      document.getElementById('license-screen').style.display = 'none';
+      if (data.trial_ended) {
+        document.getElementById('trial-screen').style.display = 'flex';
+      } else {
+        loadHistory();
+      }
+    } else {
+      document.getElementById('loginError').textContent = data.error || 'Invalid email or password.';
+      btn.textContent = 'Sign In';
+      btn.disabled    = false;
+    }
+  }
+
+  async function activateUpgrade() {
+    const email    = document.getElementById('upgradeEmail').value.trim();
+    const password = document.getElementById('upgradePassword').value.trim();
+
+    if (!email || !password) {
+      document.getElementById('upgradeError').textContent = 'Please enter your email and password.';
+      return;
+    }
+
+    const res  = await fetch('/api/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (data.valid && !data.trial_ended) {
+      document.getElementById('trial-screen').style.display = 'none';
+      loadHistory();
+    } else if (data.trial_ended) {
+      document.getElementById('upgradeError').textContent = 'Your trial has ended. Please purchase a plan first.';
+    } else {
+      document.getElementById('upgradeError').textContent = data.error || 'Invalid email or password.';
+    }
+  }
+
+  // Check license on page load
+  checkLicense();
+
 </script>
+<script src="/static/practice.js"></script>
 </body>
 </html>

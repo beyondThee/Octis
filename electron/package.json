@@ -1,5 +1,5 @@
 {
-  "name": "octis",
+  "name": "quick-notes",
   "version": "1.0.0",
   "description": "AI-powered lecture note taker",
   "main": "main.js",
@@ -9,8 +9,8 @@
     "build-mac": "electron-builder --mac"
   },
   "build": {
-    "appId": "com.octis.app",
-    "productName": "Octis",
+    "appId": "com.quicknotes.app",
+    "productName": "Quick Notes",
     "publish": {
       "provider": "github",
       "owner": "beyondThee",

@@ -97,7 +97,7 @@ function createWindow() {
     height:          740,
     minWidth:        640,
     minHeight:       560,
-    title:           'Octis',
+    title:           'Quick Notes',
     backgroundColor: '#F0F2F5',
     autoHideMenuBar: true,
     menuBarVisible:  false,

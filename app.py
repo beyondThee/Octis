@@ -14,34 +14,37 @@ The app opens automatically in your default browser.
 """
 
 import threading
-import webbrowser
 import json
 import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, Response
 from recorder import Recorder
 from transcriber import Transcriber
-from note_generator import NoteGenerator
+from note_generator import NoteGenerator, login, verify_token
 from output_saver import OutputSaver
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
-# ── Global state ───────────────────────────────────────────────
-state = {
-    "recording":    False,
-    "paused":       False,
-    "generating":   False,
-    "transcript":   "",
-    "status":       "",
-    "results":      None,
-    "recorder":     None,
-    "transcriber":  None,
-    "record_start": None,
-}
-
+# ── Data directory setup ───────────────────────────────────────
 OCTIS_DATA_DIR = os.path.join(os.path.expanduser("~"), "Documents", "Octis")
 os.makedirs(OCTIS_DATA_DIR, exist_ok=True)
 HISTORY_FILE = os.path.join(OCTIS_DATA_DIR, "lecture_history.json")
+LICENSE_FILE = os.path.join(OCTIS_DATA_DIR, "license.json")
+
+
+def load_license():
+    if os.path.exists(LICENSE_FILE):
+        try:
+            with open(LICENSE_FILE) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_license(data):
+    with open(LICENSE_FILE, "w") as f:
+        json.dump(data, f)
 
 
 def load_history():
@@ -59,6 +62,47 @@ def save_history(h):
         json.dump(h, f, indent=2)
 
 
+# ── App state ──────────────────────────────────────────────────
+state = {
+    "recording":    False,
+    "paused":       False,
+    "generating":   False,
+    "transcript":   "",
+    "status":       "",
+    "results":      None,
+    "recorder":     None,
+    "transcriber":  None,
+    "record_start": None,
+    "licensed":     False,
+    "trial_ended":  False,
+    "jwt_token":    "",
+    "email":        "",
+    "plan":         "",
+}
+
+# Load and validate saved session on startup
+def _validate_session():
+    saved = load_license()
+    token = saved.get("token", "")
+    email = saved.get("email", "")
+    if token and email:
+        valid, info = verify_token(token, email)
+        if valid:
+            trial_ended = info.get("trial_ended", False)
+            state["licensed"]    = not trial_ended
+            state["trial_ended"] = trial_ended
+            state["jwt_token"]   = token
+            state["email"]       = email
+            state["plan"]        = info.get("plan", "")
+        else:
+            state["trial_ended"] = True
+    else:
+        # No saved session — bypass login for now until website is live
+        state["licensed"] = True
+
+threading.Thread(target=_validate_session, daemon=True).start()
+
+
 # Load Whisper at startup in background
 def _load_whisper():
     state["status"] = "Loading Whisper model..."
@@ -69,6 +113,39 @@ threading.Thread(target=_load_whisper, daemon=True).start()
 
 
 # ── Routes ─────────────────────────────────────────────────────
+
+@app.route("/api/license/status")
+def license_status():
+    return jsonify({
+        "licensed":    state["licensed"],
+        "trial_ended": state["trial_ended"],
+        "email":       state["email"],
+        "plan":        state["plan"],
+    })
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data     = request.get_json()
+    email    = data.get("email", "").strip()
+    password = data.get("password", "").strip()
+
+    if not email or not password:
+        return jsonify({"valid": False, "error": "Please enter your email and password"}), 400
+
+    valid, result, info = login(email, password)
+    if valid:
+        trial_ended = info.get("trial_ended", False) if info else False
+        state["licensed"]    = not trial_ended
+        state["trial_ended"] = trial_ended
+        state["jwt_token"]   = result
+        state["email"]       = email
+        state["plan"]        = info.get("plan", "") if info else ""
+        save_license({"token": result, "email": email})
+        return jsonify({"valid": True, "trial_ended": trial_ended})
+    else:
+        return jsonify({"valid": False, "error": result}), 401
+
 
 @app.route("/")
 def index():
@@ -309,6 +386,51 @@ def rename_entry():
     return jsonify({"ok": True})
 
 
+@app.route("/api/practice-test", methods=["POST"])
+def practice_test():
+    data       = request.get_json()
+    transcript = data.get("transcript", "").strip()
+    if not transcript:
+        return jsonify({"error": "No transcript provided"}), 400
+
+    try:
+        import requests as req
+        SERVER_URL = "https://web-production-2b0e5.up.railway.app"
+        APP_SECRET = "octis2026secretkey"
+        response   = req.post(
+            f"{SERVER_URL}/practice-test",
+            headers={"Content-Type": "application/json", "X-Octis-Secret": APP_SECRET,
+                     "X-Auth-Token": state.get("jwt_token", "")},
+            json={"transcript": transcript},
+            timeout=120,
+        )
+        print(f"DEBUG practice-test status: {response.status_code}")
+        print(f"DEBUG practice-test body: {response.text[:200]}")
+        return jsonify(response.json())
+    except Exception as e:
+        print(f"DEBUG practice-test error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rate-answer", methods=["POST"])
+def rate_answer():
+    data = request.get_json()
+    try:
+        import requests as req
+        SERVER_URL = "https://web-production-2b0e5.up.railway.app"
+        APP_SECRET = "octis2026secretkey"
+        response   = req.post(
+            f"{SERVER_URL}/rate-answer",
+            headers={"Content-Type": "application/json", "X-Octis-Secret": APP_SECRET,
+                     "X-Auth-Token": state.get("jwt_token", "")},
+            json=data,
+            timeout=30,
+        )
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/stop", methods=["POST"])
 def stop_recording():
     state["recording"]  = False
@@ -331,7 +453,7 @@ def stop_recording():
                 state["generating"] = False
                 return
 
-            results       = NoteGenerator().generate(transcript)
+            results       = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
             output_folder = OutputSaver().save(results, transcript)
 
             # Save transcript to results so UI can show it
