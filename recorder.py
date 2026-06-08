@@ -5,7 +5,8 @@ Two-pass transcription:
   Pass 1 — every 30s using base model  → words type smoothly onto screen
   Pass 2 — every 60s using small model → silent background correction
 
-Uses the system default input device and auto-detects sample rate.
+Records at the device's native rate then resamples to 16000 Hz using
+numpy only (no scipy dependency needed).
 """
 
 import sounddevice as sd
@@ -14,6 +15,19 @@ import tempfile
 import threading
 import os
 import numpy as np
+
+
+def _resample(audio, from_rate, to_rate):
+    """Resample audio using numpy linear interpolation. No scipy needed."""
+    if from_rate == to_rate:
+        return audio
+    target_length = int(len(audio) * to_rate / from_rate)
+    resampled = np.interp(
+        np.linspace(0, len(audio) - 1, target_length),
+        np.arange(len(audio)),
+        audio
+    )
+    return resampled.astype(np.float32)
 
 
 class Recorder:
@@ -36,36 +50,51 @@ class Recorder:
         return self._small
 
     def _record_chunk(self, chunk_seconds):
-        """Record using the system default input device at its native sample rate."""
+        """
+        Record audio at the device's native sample rate,
+        then resample to 16000 Hz for Whisper.
+        """
+        # Get native sample rate of default input device
         try:
             device_info = sd.query_devices(kind='input')
-            sample_rate = int(device_info['default_samplerate'])
+            native_rate = int(device_info['default_samplerate'])
         except Exception:
-            sample_rate = self.sample_rate
+            native_rate = self.sample_rate
 
-        frames     = int(sample_rate * chunk_seconds)
-        audio_data = sd.rec(frames, samplerate=sample_rate,
-                            channels=1, dtype='float32', device=None)
+        frames = int(native_rate * chunk_seconds)
 
-        for _ in range(chunk_seconds * 10):
-            if self.stop_flag.is_set():
-                sd.stop()
-                break
-            sd.sleep(100)
+        try:
+            audio_data = sd.rec(frames, samplerate=native_rate,
+                                channels=1, dtype='float32', device=None)
 
-        sd.stop()
-        audio_flat = audio_data.flatten()
+            for _ in range(chunk_seconds * 10):
+                if self.stop_flag.is_set():
+                    sd.stop()
+                    break
+                sd.sleep(100)
 
-        # Resample to 16000 Hz if needed for Whisper
-        if sample_rate != self.sample_rate:
+            sd.stop()
+            audio_flat = audio_data.flatten()
+
+        except Exception as e:
+            # Fallback: try recording at 16000 Hz directly
             try:
-                from scipy import signal
-                num_samples = int(len(audio_flat) * self.sample_rate / sample_rate)
-                audio_flat  = signal.resample(audio_flat, num_samples)
-            except ImportError:
-                pass  # if scipy not available, use as-is
+                frames     = int(self.sample_rate * chunk_seconds)
+                audio_data = sd.rec(frames, samplerate=self.sample_rate,
+                                    channels=1, dtype='float32')
+                for _ in range(chunk_seconds * 10):
+                    if self.stop_flag.is_set():
+                        sd.stop()
+                        break
+                    sd.sleep(100)
+                sd.stop()
+                audio_flat  = audio_data.flatten()
+                native_rate = self.sample_rate
+            except Exception:
+                return np.zeros(self.sample_rate * chunk_seconds, dtype=np.float32)
 
-        return audio_flat
+        # Resample to 16000 Hz using numpy (no scipy needed)
+        return _resample(audio_flat, native_rate, self.sample_rate)
 
     def _transcribe(self, model, audio_data):
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -94,7 +123,7 @@ class Recorder:
         revision_queue   = []
 
         while not self.stop_flag.is_set():
-            # Record 30 second chunk using system default mic
+            # Record chunk and resample to 16000 Hz
             audio_flat = self._record_chunk(chunk_seconds)
 
             # Pass 1: base model transcription
@@ -108,8 +137,8 @@ class Recorder:
 
             # Pass 2: every 60s, small model in background
             if len(audio_buffer_60s) >= 2:
-                combined = np.concatenate(audio_buffer_60s)
-                gid      = group_60s
+                combined         = np.concatenate(audio_buffer_60s)
+                gid              = group_60s
                 group_60s       += 1
                 audio_buffer_60s = []
 
