@@ -5,7 +5,7 @@ Two-pass transcription:
   Pass 1 — every 30s using base model  → words type smoothly onto screen
   Pass 2 — every 60s using small model → silent background correction
 
-The transcript sent to Claude is always the small model (most accurate) version.
+Uses the system default input device and auto-detects sample rate.
 """
 
 import sounddevice as sd
@@ -18,10 +18,10 @@ import numpy as np
 
 class Recorder:
     def __init__(self, sample_rate=16000):
-        self.sample_rate     = sample_rate
-        self.stop_flag       = threading.Event()
-        self._base           = None
-        self._small          = None
+        self.sample_rate = sample_rate
+        self.stop_flag   = threading.Event()
+        self._base       = None
+        self._small      = None
 
     def _get_base(self):
         if not self._base:
@@ -34,6 +34,38 @@ class Recorder:
             import whisper
             self._small = whisper.load_model("small")
         return self._small
+
+    def _record_chunk(self, chunk_seconds):
+        """Record using the system default input device at its native sample rate."""
+        try:
+            device_info = sd.query_devices(kind='input')
+            sample_rate = int(device_info['default_samplerate'])
+        except Exception:
+            sample_rate = self.sample_rate
+
+        frames     = int(sample_rate * chunk_seconds)
+        audio_data = sd.rec(frames, samplerate=sample_rate,
+                            channels=1, dtype='float32', device=None)
+
+        for _ in range(chunk_seconds * 10):
+            if self.stop_flag.is_set():
+                sd.stop()
+                break
+            sd.sleep(100)
+
+        sd.stop()
+        audio_flat = audio_data.flatten()
+
+        # Resample to 16000 Hz if needed for Whisper
+        if sample_rate != self.sample_rate:
+            try:
+                from scipy import signal
+                num_samples = int(len(audio_flat) * self.sample_rate / sample_rate)
+                audio_flat  = signal.resample(audio_flat, num_samples)
+            except ImportError:
+                pass  # if scipy not available, use as-is
+
+        return audio_flat
 
     def _transcribe(self, model, audio_data):
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -57,26 +89,15 @@ class Recorder:
         """
         self.stop_flag.clear()
 
-        audio_buffer_60s = []   # accumulates 2 x 30s chunks
+        audio_buffer_60s = []
         group_60s        = 0
-        revision_queue   = []   # results from pass 2 ready to yield
+        revision_queue   = []
 
         while not self.stop_flag.is_set():
-            # ── Record 30 seconds ─────────────────────────────
-            frames     = int(self.sample_rate * chunk_seconds)
-            audio_data = sd.rec(frames, samplerate=self.sample_rate,
-                                channels=1, dtype="float32")
+            # Record 30 second chunk using system default mic
+            audio_flat = self._record_chunk(chunk_seconds)
 
-            for _ in range(chunk_seconds * 10):
-                if self.stop_flag.is_set():
-                    sd.stop()
-                    break
-                sd.sleep(100)
-
-            sd.stop()
-            audio_flat = audio_data.flatten()
-
-            # ── Pass 1: base model → words for typing effect ──
+            # Pass 1: base model transcription
             text = self._transcribe(self._get_base(), audio_flat)
             if text.strip():
                 words = text.split()
@@ -85,11 +106,11 @@ class Recorder:
             # Accumulate for 60s pass
             audio_buffer_60s.append(audio_flat)
 
-            # ── Pass 2: every 60s (2 x 30s) small model ───────
+            # Pass 2: every 60s, small model in background
             if len(audio_buffer_60s) >= 2:
                 combined = np.concatenate(audio_buffer_60s)
                 gid      = group_60s
-                group_60s += 1
+                group_60s       += 1
                 audio_buffer_60s = []
 
                 def do_pass2(audio=combined, g=gid):
@@ -104,7 +125,7 @@ class Recorder:
                 item = revision_queue.pop(0)
                 yield item
 
-        # Flush remaining audio
+        # Flush remaining audio through base model
         if audio_buffer_60s:
             combined = np.concatenate(audio_buffer_60s)
             text     = self._transcribe(self._get_base(), combined)
