@@ -58,7 +58,9 @@ class Recorder:
         try:
             device_info = sd.query_devices(kind='input')
             native_rate = int(device_info['default_samplerate'])
-        except Exception:
+            print(f"Recording device: {device_info['name']}, rate: {native_rate}")
+        except Exception as e:
+            print(f"Device query failed: {e}")
             native_rate = self.sample_rate
 
         frames = int(native_rate * chunk_seconds)
@@ -100,9 +102,27 @@ class Recorder:
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         try:
             sf.write(tmp.name, audio_data, self.sample_rate)
-            result = model.transcribe(tmp.name, fp16=False, language="en")
-            return result["text"].strip()
-        except Exception:
+
+            # Check if audio has any signal at all
+            rms = float(np.sqrt(np.mean(audio_data ** 2)))
+            print(f"Audio RMS level: {rms:.6f}")
+
+            if rms < 0.0001:
+                print("WARNING: Audio appears to be silence or near-silence")
+                return ""
+
+            result = model.transcribe(
+                tmp.name,
+                fp16=False,
+                language="en",
+                no_speech_threshold=0.3,   # default is 0.6 — lower = more sensitive
+                logprob_threshold=-2.0,    # default is -1.0 — more lenient
+            )
+            text = result["text"].strip()
+            print(f"Whisper result: '{text[:100]}'")
+            return text
+        except Exception as e:
+            print(f"Transcribe error: {e}")
             return ""
         finally:
             try:
