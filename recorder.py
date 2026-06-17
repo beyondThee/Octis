@@ -111,10 +111,7 @@ class Recorder:
         return _resample(audio_flat, native_rate, self.sample_rate)
 
     def _transcribe(self, model, audio_data):
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         try:
-            sf.write(tmp.name, audio_data, self.sample_rate)
-
             # Check if audio has any signal at all
             rms = float(np.sqrt(np.mean(audio_data ** 2)))
             _log(f"Audio RMS level: {rms:.6f}")
@@ -123,8 +120,11 @@ class Recorder:
                 _log("WARNING: Audio appears to be silence or near-silence")
                 return ""
 
+            # Pass numpy array directly to Whisper — bypasses ffmpeg entirely
+            audio_input = audio_data.astype(np.float32)
+
             result = model.transcribe(
-                tmp.name,
+                audio_input,
                 fp16=False,
                 language="en",
                 no_speech_threshold=0.3,
@@ -136,11 +136,6 @@ class Recorder:
         except Exception as e:
             _log(f"Transcribe error: {e}")
             return ""
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except Exception:
-                pass
 
     def record_in_chunks(self, chunk_seconds=30):
         """
