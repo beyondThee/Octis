@@ -15,6 +15,18 @@ import tempfile
 import threading
 import os
 import numpy as np
+from datetime import datetime
+
+# Debug log file in Documents/Octis
+LOG_FILE = os.path.join(os.path.expanduser("~"), "Documents", "Octis", "debug.log")
+
+def _log(msg):
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        with open(LOG_FILE, "a") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass
 
 
 def _resample(audio, from_rate, to_rate):
@@ -58,9 +70,9 @@ class Recorder:
         try:
             device_info = sd.query_devices(kind='input')
             native_rate = int(device_info['default_samplerate'])
-            print(f"Recording device: {device_info['name']}, rate: {native_rate}")
+            _log(f"Recording device: {device_info['name']}, rate: {native_rate}")
         except Exception as e:
-            print(f"Device query failed: {e}")
+            _log(f"Device query failed: {e}")
             native_rate = self.sample_rate
 
         frames = int(native_rate * chunk_seconds)
@@ -105,24 +117,24 @@ class Recorder:
 
             # Check if audio has any signal at all
             rms = float(np.sqrt(np.mean(audio_data ** 2)))
-            print(f"Audio RMS level: {rms:.6f}")
+            _log(f"Audio RMS level: {rms:.6f}")
 
             if rms < 0.0001:
-                print("WARNING: Audio appears to be silence or near-silence")
+                _log("WARNING: Audio appears to be silence or near-silence")
                 return ""
 
             result = model.transcribe(
                 tmp.name,
                 fp16=False,
                 language="en",
-                no_speech_threshold=0.3,   # default is 0.6 — lower = more sensitive
-                logprob_threshold=-2.0,    # default is -1.0 — more lenient
+                no_speech_threshold=0.3,
+                logprob_threshold=-2.0,
             )
             text = result["text"].strip()
-            print(f"Whisper result: '{text[:100]}'")
+            _log(f"Whisper result: '{text[:100]}'")
             return text
         except Exception as e:
-            print(f"Transcribe error: {e}")
+            _log(f"Transcribe error: {e}")
             return ""
         finally:
             try:

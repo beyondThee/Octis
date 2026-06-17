@@ -1,6 +1,6 @@
 {
   "name": "quick-notes",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "AI-powered lecture note taker",
   "main": "main.js",
   "scripts": {
