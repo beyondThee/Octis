@@ -95,10 +95,12 @@ def _validate_session():
             state["email"]       = email
             state["plan"]        = info.get("plan", "")
         else:
-            state["trial_ended"] = True
+            # Token invalid or expired — require login again
+            state["licensed"]    = False
+            state["trial_ended"] = info.get("trial_ended", False) if isinstance(info, dict) else False
     else:
-        # No saved session — bypass login for now until website is live
-        state["licensed"] = True
+        # No saved session — user must log in
+        state["licensed"] = False
 
 threading.Thread(target=_validate_session, daemon=True).start()
 
