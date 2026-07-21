@@ -477,7 +477,7 @@
     border-radius: 18px;
     padding: 20px 24px;
     min-height: 300px;
-    max-height: 420px;
+    max-height: 72vh;
     overflow-y: auto;
     font-size: 14px;
     line-height: 1.8;
@@ -485,6 +485,14 @@
     white-space: pre-wrap;
     transition: background var(--transition), border-color var(--transition), color var(--transition);
     animation: fade-up 0.3s ease both;
+  }
+
+  /* Practice Test and Weak Spots grow with their content instead of
+     scrolling inside a fixed box — the page scrolls naturally instead. */
+  #tab-test,
+  #tab-weakspot {
+    max-height: none;
+    overflow: visible;
   }
 
   .tab-content.active { display: block; }
@@ -540,7 +548,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;">v1.0.6</span></span>
+  <span class="nav-title">Quick Notes <span style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;">v1.0.7</span></span>
   <button class="theme-btn" id="themeBtn" title="Toggle theme">
     <!-- Moon icon -->
     <svg class="icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1137,11 +1145,19 @@
     const cards = [];
     const lines = text.split('\n');
     let current = null;
+    // Claude sometimes writes "Q: question / A: answer" on ONE line.
+    // Split those so the answer never shows inside the question.
+    function splitQ(raw) {
+      const m = raw.match(/^(.*?)[\s\/\-–|]*\bA\s*:\s*(.*)$/);
+      if (m) return { q: m[1].trim(), a: m[2].trim() };
+      return { q: raw.trim(), a: '' };
+    }
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('Q:')) {
         if (current) cards.push(current);
-        current = { q: trimmed.slice(2).trim(), a: '', disabled: false };
+        const parts = splitQ(trimmed.slice(2).trim());
+        current = { q: parts.q, a: parts.a, disabled: false };
       } else if (trimmed.startsWith('A:') && current) {
         current.a = trimmed.slice(2).trim();
       }

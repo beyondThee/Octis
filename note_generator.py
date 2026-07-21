@@ -81,6 +81,16 @@ class NoteGenerator:
     def __init__(self, jwt_token=""):
         self.jwt_token = jwt_token
 
+    def _handle(self, response):
+        """Extract the server's error message instead of a generic HTTP error."""
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("error", "")
+            except Exception:
+                detail = response.text[:200]
+            raise Exception(detail or f"Server returned {response.status_code}")
+        return response.json()
+
     def generate(self, transcript):
         response = requests.post(
             f"{SERVER_URL}/generate",
@@ -88,8 +98,7 @@ class NoteGenerator:
             json={"transcript": transcript},
             timeout=120,
         )
-        response.raise_for_status()
-        return response.json()
+        return self._handle(response)
 
     def generate_with_textbook(self, transcript, textbook_text):
         response = requests.post(
@@ -98,5 +107,4 @@ class NoteGenerator:
             json={"transcript": transcript, "textbook": textbook_text},
             timeout=120,
         )
-        response.raise_for_status()
-        return response.json()
+        return self._handle(response)
