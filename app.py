@@ -286,11 +286,56 @@ def get_history_entry(index):
         "name":       entry.get("name", "Lecture"),
         "date":       entry.get("date", ""),
         "duration":   entry.get("duration", ""),
+        "status":     entry.get("status", "generated"),
         "notes":      read_file("notes.txt"),
         "flashcards": read_file("flashcards.txt"),
         "summary":    read_file("summary.txt"),
         "transcript": read_file("transcript.txt"),
     })
+
+
+@app.route("/api/generate-saved/<int:index>", methods=["POST"])
+def generate_saved(index):
+    """
+    Generate notes for a lecture that was saved but never generated
+    (recorded while offline or while the site was down).
+    """
+    history = load_history()
+    if index < 0 or index >= len(history):
+        return jsonify({"error": "Entry not found"}), 404
+
+    entry  = history[index]
+    folder = entry.get("folder", "")
+
+    # Read the saved raw transcript
+    tpath = os.path.join(folder, "transcript.txt")
+    if not os.path.exists(tpath):
+        return jsonify({"error": "No transcript found for this lecture"}), 404
+    with open(tpath, "r", encoding="utf-8") as f:
+        content = f.read()
+    lines      = content.split("\n")
+    transcript = "\n".join(lines[2:]).strip() if len(lines) > 2 else content.strip()
+
+    if not transcript:
+        return jsonify({"error": "This lecture has no transcript to generate from"}), 400
+
+    try:
+        results = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+    # Overwrite the saved files with the freshly generated content
+    OutputSaver().save({**results, "transcript": transcript}, transcript, folder=folder)
+
+    # Update the history entry: new title, mark as generated
+    name = results.get("title", "").strip() or entry.get("name", "Lecture").replace(" (not generated)", "")
+    entry["name"]   = name
+    entry["status"] = "generated"
+    history[index]  = entry
+    save_history(history)
+
+    results["transcript"] = transcript
+    return jsonify({**results, "name": name, "status": "generated"})
 
 
 
@@ -455,7 +500,15 @@ def stop_recording():
                 state["generating"] = False
                 return
 
-            results       = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
+            try:
+                results       = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
+            except Exception as gen_err:
+                # Generation failed (no internet, website down, or access blocked).
+                # Never lose the lecture — save the raw transcript as "ungenerated"
+                # so the user can generate notes later from the history list.
+                _save_ungenerated(transcript, duration_mins, str(gen_err))
+                return
+
             output_folder = OutputSaver().save(results, transcript)
 
             # Save transcript to results so UI can show it
@@ -471,6 +524,7 @@ def stop_recording():
                 "date":     datetime.now().strftime("%b %d, %Y"),
                 "duration": f"{duration_mins} min",
                 "folder":   output_folder,
+                "status":   "generated",
             }
             history = load_history()
             history.append(entry)
@@ -486,6 +540,42 @@ def stop_recording():
 
     threading.Thread(target=generate, daemon=True).start()
     return jsonify({"ok": True})
+
+
+def _save_ungenerated(transcript, duration_mins, reason=""):
+    """
+    Save a lecture that couldn't be generated (offline, website down,
+    or access blocked). The raw transcript is preserved so the user
+    can generate notes later. Shows up in history marked 'ungenerated'.
+    """
+    try:
+        results = {
+            "title":      "",
+            "notes":      "",
+            "flashcards": "",
+            "summary":    "",
+            "transcript": transcript,
+        }
+        output_folder = OutputSaver().save(results, transcript)
+
+        name = f"Lecture {datetime.now().strftime('%b %d')} (not generated)"
+        entry = {
+            "name":     name,
+            "date":     datetime.now().strftime("%b %d, %Y"),
+            "duration": f"{duration_mins} min",
+            "folder":   output_folder,
+            "status":   "ungenerated",
+        }
+        history = load_history()
+        history.append(entry)
+        save_history(history)
+
+        state["results"]    = None
+        state["generating"] = False
+        state["status"]     = "Saved. Couldn't generate notes right now — your lecture is safe in your recordings and you can generate it later."
+    except Exception as e:
+        state["status"]     = f"Error saving lecture: {e}"
+        state["generating"] = False
 
 
 # ── Launch ─────────────────────────────────────────────────────

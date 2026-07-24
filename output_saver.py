@@ -4,7 +4,7 @@ output_saver.py
 Saves lecture materials to a dedicated folder in the user's home directory.
 This folder survives app updates, reinstalls, and uninstalls completely.
 
-Windows: C:/Users/YourName/Documents/Octis/
+Windows: C:\Users\YourName\Documents\Octis\
 Mac:     /Users/YourName/Documents/Octis/
 """
 
@@ -30,9 +30,13 @@ class OutputSaver:
         self.base_folder = os.path.join(get_user_data_dir(), "Lectures")
         os.makedirs(self.base_folder, exist_ok=True)
 
-    def save(self, results, transcript):
-        timestamp     = datetime.now().strftime("%Y-%m-%d_%H-%M")
-        output_folder = os.path.join(self.base_folder, f"lecture_{timestamp}")
+    def save(self, results, transcript, folder=None):
+        # Reuse the given folder (regenerating a saved lecture) or make a new one
+        if folder:
+            output_folder = folder
+        else:
+            timestamp     = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            output_folder = os.path.join(self.base_folder, f"lecture_{timestamp}")
         os.makedirs(output_folder, exist_ok=True)
 
         self._write_file(output_folder, "transcript.txt",
