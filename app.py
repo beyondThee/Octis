@@ -322,7 +322,8 @@ def generate_saved(index):
     try:
         results = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        reason = getattr(e, "reason", "")
+        return jsonify({"error": str(e), "reason": reason}), 502
 
     # Overwrite the saved files with the freshly generated content
     OutputSaver().save({**results, "transcript": transcript}, transcript, folder=folder)

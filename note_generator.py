@@ -77,6 +77,14 @@ def verify_token(jwt_token, email=""):
         return True, {"email": email, "plan": "unknown", "trial_ended": False}
 
 
+class GenerateError(Exception):
+    """Carries the server's reason code ('offline', 'access', or '') so
+    the app can respond differently to each."""
+    def __init__(self, message, reason=""):
+        super().__init__(message)
+        self.reason = reason
+
+
 class NoteGenerator:
     def __init__(self, jwt_token=""):
         self.jwt_token = jwt_token
@@ -84,11 +92,14 @@ class NoteGenerator:
     def _handle(self, response):
         """Extract the server's error message instead of a generic HTTP error."""
         if response.status_code >= 400:
+            reason = ""
             try:
-                detail = response.json().get("error", "")
+                body   = response.json()
+                detail = body.get("error", "")
+                reason = body.get("reason", "")
             except Exception:
                 detail = response.text[:200]
-            raise Exception(detail or f"Server returned {response.status_code}")
+            raise GenerateError(detail or f"Server returned {response.status_code}", reason)
         return response.json()
 
     def generate(self, transcript):

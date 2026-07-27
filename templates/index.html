@@ -822,15 +822,69 @@
       return;
     }
 
-    list.innerHTML = [...data].reverse().map((e, i) => `
-      <div class="history-card" onclick="openHistory(${data.length - 1 - i})">
-        <div class="history-info">
-          <div class="history-name">${e.name}</div>
-          <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration}</div>
-        </div>
-        <span class="history-arrow">›</span>
-      </div>
-    `).join('');
+    list.innerHTML = [...data].reverse().map((e, i) => {
+      const realIndex   = data.length - 1 - i;
+      const ungenerated = e.status === 'ungenerated';
+
+      if (ungenerated) {
+        // Not-yet-generated lecture: show a badge + a Generate button.
+        // Clicking the card does nothing; only the button acts.
+        return `
+          <div class="history-card" style="border:1px dashed var(--coral);">
+            <div class="history-info">
+              <div class="history-name">${e.name}
+                <span style="display:inline-block;margin-left:8px;font-size:11px;font-weight:600;color:var(--coral);background:#FCEBEB;padding:2px 8px;border-radius:20px;vertical-align:middle;">NOT GENERATED</span>
+              </div>
+              <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration}</div>
+            </div>
+            <button onclick="event.stopPropagation(); generateSaved(${realIndex}, this)"
+              style="padding:8px 16px;background:var(--coral);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+              Generate
+            </button>
+          </div>`;
+      }
+
+      return `
+        <div class="history-card" onclick="openHistory(${realIndex})">
+          <div class="history-info">
+            <div class="history-name">${e.name}</div>
+            <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration}</div>
+          </div>
+          <span class="history-arrow">›</span>
+        </div>`;
+    }).join('');
+  }
+
+  async function generateSaved(index, btn) {
+    btn.disabled    = true;
+    btn.textContent = 'Generating...';
+
+    try {
+      const res  = await fetch(`/api/generate-saved/${index}`, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.error) {
+        btn.disabled    = false;
+        btn.textContent = 'Generate';
+        if (data.reason === 'offline') {
+          alert('Still can\'t reach the internet. Your lecture is safe — try again when you\'re back online.');
+        } else if (data.reason === 'access') {
+          alert('Your subscription or trial has ended. Renew to generate notes.');
+        } else {
+          alert('Could not generate: ' + data.error);
+        }
+        return;
+      }
+
+      // Success — open the freshly generated lecture
+      data._index = index;
+      showResults(data);
+      loadHistory();
+    } catch (err) {
+      btn.disabled    = false;
+      btn.textContent = 'Generate';
+      alert('Error: ' + err.message);
+    }
   }
 
   loadHistory();
