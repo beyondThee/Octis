@@ -323,13 +323,18 @@ def generate_saved(index):
         results = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
     except Exception as e:
         reason = getattr(e, "reason", "")
+        # A raw connection failure means there's no internet — treat as offline
+        msg = str(e).lower()
+        if not reason and ("connection" in msg or "resolve" in msg or "getaddrinfo" in msg
+                           or "max retries" in msg or "timed out" in msg):
+            reason = "offline"
         return jsonify({"error": str(e), "reason": reason}), 502
 
     # Overwrite the saved files with the freshly generated content
     OutputSaver().save({**results, "transcript": transcript}, transcript, folder=folder)
 
     # Update the history entry: new title, mark as generated
-    name = results.get("title", "").strip() or entry.get("name", "Lecture").replace(" (not generated)", "")
+    name = results.get("title", "").strip() or entry.get("name", "Lecture")
     entry["name"]   = name
     entry["status"] = "generated"
     history[index]  = entry
@@ -559,7 +564,7 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
         }
         output_folder = OutputSaver().save(results, transcript)
 
-        name = f"Lecture {datetime.now().strftime('%b %d')} (not generated)"
+        name = f"Lecture {datetime.now().strftime('%b %d')}"
         entry = {
             "name":     name,
             "date":     datetime.now().strftime("%b %d, %Y"),

@@ -856,22 +856,27 @@
   }
 
   async function generateSaved(index, btn) {
-    btn.disabled    = true;
-    btn.textContent = 'Generating...';
+    btn.disabled  = true;
+    // Bouncing dots while generating (uses the same qn-dots style as practice tests)
+    btn.innerHTML = "Generating <span class='qn-dots' style='margin-left:2px;'><span></span><span></span><span></span></span>";
+
+    function resetBtn() {
+      btn.disabled    = false;
+      btn.textContent = 'Generate';
+    }
 
     try {
       const res  = await fetch(`/api/generate-saved/${index}`, { method: 'POST' });
       const data = await res.json();
 
       if (data.error) {
-        btn.disabled    = false;
-        btn.textContent = 'Generate';
+        resetBtn();
         if (data.reason === 'offline') {
-          alert('Still can\'t reach the internet. Your lecture is safe — try again when you\'re back online.');
+          alert('No internet connection right now.\n\nYour lecture is saved safely. Just tap Generate again once you\'re back online.');
         } else if (data.reason === 'access') {
-          alert('Your subscription or trial has ended. Renew to generate notes.');
+          alert('Your subscription or trial has ended.\n\nRenew to generate notes from your saved lectures.');
         } else {
-          alert('Could not generate: ' + data.error);
+          alert('Something went wrong while generating.\n\nYour lecture is still saved — please try again in a moment.');
         }
         return;
       }
@@ -881,9 +886,8 @@
       showResults(data);
       loadHistory();
     } catch (err) {
-      btn.disabled    = false;
-      btn.textContent = 'Generate';
-      alert('Error: ' + err.message);
+      resetBtn();
+      alert('No internet connection right now.\n\nYour lecture is saved safely. Just tap Generate again once you\'re back online.');
     }
   }
 
