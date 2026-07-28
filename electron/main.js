@@ -8,22 +8,51 @@ const { app, BrowserWindow, shell, Menu } = require('electron');
 const { spawn }                      = require('child_process');
 const path                           = require('path');
 const http                           = require('http');
+const fs                             = require('fs');
+const os                             = require('os');
 const { autoUpdater }                = require('electron-updater');
 
 let mainWindow   = null;
 let pythonProcess = null;
+
+// ── Update logging ────────────────────────────────────────────
+// Writes update activity to Documents/Octis/update.log so we can
+// see exactly what the auto-updater is doing (or why it fails).
+function updateLog(msg) {
+  try {
+    const dir = path.join(os.homedir(), 'Documents', 'Octis');
+    fs.mkdirSync(dir, { recursive: true });
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    fs.appendFileSync(path.join(dir, 'update.log'), line);
+  } catch (e) { /* ignore */ }
+}
 
 // ── Silent auto updater ───────────────────────────────────────
 autoUpdater.autoDownload         = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function setupAutoUpdater() {
-  if (!app.isPackaged) return;
-  autoUpdater.checkForUpdates().catch(() => {});
-  autoUpdater.on('update-downloaded', () => {
+  if (!app.isPackaged) {
+    updateLog('Not packaged (dev mode) — skipping update check');
+    return;
+  }
+  updateLog('Current version: ' + app.getVersion() + ' — checking for updates...');
+
+  autoUpdater.on('checking-for-update', () => updateLog('Checking for update...'));
+  autoUpdater.on('update-available',    (i) => updateLog('Update AVAILABLE: ' + (i && i.version)));
+  autoUpdater.on('update-not-available',(i) => updateLog('No update. Server has: ' + (i && i.version)));
+  autoUpdater.on('download-progress',   (p) => updateLog('Downloading: ' + Math.round(p.percent) + '%'));
+  autoUpdater.on('update-downloaded',   (i) => {
+    updateLog('Update DOWNLOADED: ' + (i && i.version) + ' — installing on quit');
     autoUpdater.quitAndInstall(true, true);
   });
-  autoUpdater.on('error', () => {});
+  autoUpdater.on('error', (err) => {
+    updateLog('UPDATE ERROR: ' + (err ? err.message : 'unknown'));
+  });
+
+  autoUpdater.checkForUpdates().catch((err) => {
+    updateLog('checkForUpdates threw: ' + (err ? err.message : 'unknown'));
+  });
 }
 
 // ── Find the Python backend ───────────────────────────────────
