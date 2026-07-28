@@ -123,6 +123,24 @@ jobs:
             -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; "Content-Type" = "application/octet-stream" } `
             -InFile $exeFile.FullName
 
+      - name: Upload latest.yml (required for auto-update)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: powershell
+        run: |
+          $ymlFile = Get-ChildItem -Path dist_electron -Filter "latest.yml" | Select-Object -First 1
+          if ($null -eq $ymlFile) {
+            Write-Error "latest.yml not found — auto-update will not work"
+            exit 1
+          }
+          Write-Host "Found latest.yml: $($ymlFile.FullName)"
+          $uploadUrl = "${{ needs.create-release.outputs.upload_url }}" -replace '\{.*\}', ''
+          $uploadUrl = "${uploadUrl}?name=latest.yml&label=latest.yml"
+          Invoke-RestMethod -Uri $uploadUrl `
+            -Method Post `
+            -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; "Content-Type" = "text/yaml" } `
+            -InFile $ymlFile.FullName
+
   # ── Mac Build ─────────────────────────────────────────────────
   build-mac:
     runs-on: macos-latest
@@ -248,3 +266,4 @@ jobs:
                --data-binary @"$DMG_FILE" \
                "${CLEAN_URL}?name=Octis.dmg&label=Octis.dmg"
           echo "Upload complete"
+
