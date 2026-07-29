@@ -28,6 +28,7 @@ function updateLog(msg) {
 }
 
 // ── Silent auto updater ───────────────────────────────────────
+// v1.1.4: verifying clean install-on-quit (no mid-use interruption)
 autoUpdater.autoDownload         = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
