@@ -43,8 +43,10 @@ function setupAutoUpdater() {
   autoUpdater.on('update-not-available',(i) => updateLog('No update. Server has: ' + (i && i.version)));
   autoUpdater.on('download-progress',   (p) => updateLog('Downloading: ' + Math.round(p.percent) + '%'));
   autoUpdater.on('update-downloaded',   (i) => {
-    updateLog('Update DOWNLOADED: ' + (i && i.version) + ' — installing on quit');
-    autoUpdater.quitAndInstall(true, true);
+    // Do NOT force-quit here — that interrupts the user mid-task.
+    // autoInstallOnAppQuit (set above) installs it silently the next
+    // time they close the app on their own. Seamless, no disruption.
+    updateLog('Update DOWNLOADED: ' + (i && i.version) + ' — will install on next quit');
   });
   autoUpdater.on('error', (err) => {
     updateLog('UPDATE ERROR: ' + (err ? err.message : 'unknown'));
