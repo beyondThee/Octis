@@ -5,56 +5,14 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # lets electron-builder create the release and upload assets
+
 jobs:
-
-  # ── Create Release ────────────────────────────────────────────
-  create-release:
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get version from package.json
-        id: get_version
-        run: |
-          VERSION=$(cat electron/package.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Delete existing release if exists
-        run: |
-          gh release delete "v${{ steps.get_version.outputs.version }}" --yes 2>/dev/null || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          release_name: Quick Notes v${{ steps.get_version.outputs.version }}
-          body: |
-            ## Download Quick Notes
-
-            | Platform | Download |
-            |---|---|
-            | Windows | See assets below → QuickNotes-Setup.exe |
-            | Mac | See assets below → QuickNotes.dmg |
-
-            ### Installation
-            **Windows:** Download and run `Quick Notes Setup ${{ steps.get_version.outputs.version }}.exe`
-            **Mac:** Download `Quick Notes-${{ steps.get_version.outputs.version }}.dmg`, open it and drag Quick Notes to Applications
-          draft: false
-          prerelease: false
 
   # ── Windows Build ─────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
-    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -102,49 +60,18 @@ jobs:
           cd electron
           npm install
 
-      - name: Build Windows installer
+      # electron-builder creates the release, builds the installer,
+      # generates latest.yml, and uploads ALL of it to GitHub.
+      - name: Build and publish Windows installer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd electron
-          npm run build-win
-
-      - name: Find and upload Windows installer to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: powershell
-        run: |
-          $exeFile = Get-ChildItem -Path dist_electron -Filter "*.exe" | Select-Object -First 1
-          Write-Host "Found EXE: $($exeFile.FullName)"
-          $uploadUrl = "${{ needs.create-release.outputs.upload_url }}" -replace '\{.*\}', ''
-          $uploadUrl = "${uploadUrl}?name=Octis-Setup.exe&label=Octis-Setup.exe"
-          Invoke-RestMethod -Uri $uploadUrl `
-            -Method Post `
-            -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; "Content-Type" = "application/octet-stream" } `
-            -InFile $exeFile.FullName
-
-      - name: Upload latest.yml (required for auto-update)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: powershell
-        run: |
-          $ymlFile = Get-ChildItem -Path dist_electron -Filter "latest.yml" | Select-Object -First 1
-          if ($null -eq $ymlFile) {
-            Write-Error "latest.yml not found — auto-update will not work"
-            exit 1
-          }
-          Write-Host "Found latest.yml: $($ymlFile.FullName)"
-          $uploadUrl = "${{ needs.create-release.outputs.upload_url }}" -replace '\{.*\}', ''
-          $uploadUrl = "${uploadUrl}?name=latest.yml&label=latest.yml"
-          Invoke-RestMethod -Uri $uploadUrl `
-            -Method Post `
-            -Headers @{ Authorization = "token $env:GITHUB_TOKEN"; "Content-Type" = "text/yaml" } `
-            -InFile $ymlFile.FullName
+          npx electron-builder --win --publish always
 
   # ── Mac Build ─────────────────────────────────────────────────
   build-mac:
     runs-on: macos-latest
-    needs: create-release
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -192,32 +119,21 @@ jobs:
                   ('config.py', '.'),
                   *whisper_datas,
               ],
-              hiddenimports=[
-                  'flask', 'anthropic', 'whisper',
-                  'sounddevice', 'soundfile', 'numpy',
-                  'torch', 'tiktoken',
-                  'tiktoken_ext', 'tiktoken_ext.openai_public',
-              ],
+              hiddenimports=['whisper'],
               hookspath=[],
-              runtime_hooks=['hook_ffmpeg.py'],
-              excludes=['webview'],
+              runtime_hooks=[],
+              excludes=[],
               cipher=block_cipher,
-              noarchive=False,
           )
-
           pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
           exe = EXE(
               pyz, a.scripts, [],
               exclude_binaries=True,
               name='app',
-              debug=False, strip=False, upx=True,
               console=False,
           )
-
           coll = COLLECT(
               exe, a.binaries, a.zipfiles, a.datas,
-              strip=False, upx=True, upx_exclude=[],
               name='app',
           )
           EOF
@@ -238,32 +154,11 @@ jobs:
           cd electron
           npm install
 
-      - name: Build Mac DMG
+      # electron-builder builds the DMG, generates latest-mac.yml,
+      # and uploads both to the same GitHub release.
+      - name: Build and publish Mac DMG
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd electron
-          npm run build-mac
-          echo "Electron build complete"
-          ls -la ../dist_electron/
-
-      - name: List dist_electron contents
-        run: |
-          echo "Files in dist_electron:"
-          ls -la dist_electron/ || echo "dist_electron directory not found!"
-          find dist_electron -name "*.dmg" || echo "No DMG files found!"
-
-      - name: Find and upload Mac DMG to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          DMG_FILE=$(find dist_electron -name "*.dmg" | grep -v blockmap | head -1)
-          echo "Uploading: $DMG_FILE"
-          UPLOAD_URL="${{ needs.create-release.outputs.upload_url }}"
-          CLEAN_URL=$(echo "$UPLOAD_URL" | sed 's/{?name,label}//')
-          curl -f -H "Authorization: token $GITHUB_TOKEN" \
-               -H "Content-Type: application/octet-stream" \
-               --data-binary @"$DMG_FILE" \
-               "${CLEAN_URL}?name=Octis.dmg&label=Octis.dmg"
-          echo "Upload complete"
-
+          npx electron-builder --mac --publish always
