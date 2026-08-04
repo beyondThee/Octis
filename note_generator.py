@@ -39,11 +39,17 @@ def login(email, password):
         )
         data = response.json()
         if response.status_code == 200 and data.get("token"):
+            plan        = data.get("plan", "trial")
+            trial_ended = bool(data.get("trial_ended", False)) or plan == "expired"
             return True, data.get("token"), {
                 "email":         email,
-                "plan":          data.get("plan", "trial"),
+                "plan":          plan,
                 "trial_ends_at": data.get("trial_ends_at"),
+                "trial_ended":   trial_ended,
             }
+        # No token issued — could be bad credentials OR an expired account
+        if data.get("trial_ended"):
+            return False, data.get("message", "Your access has ended."), {"trial_ended": True}
         return False, data.get("message", "Invalid email or password"), None
     except requests.exceptions.ConnectionError:
         return False, "Could not connect. Please check your internet connection.", None
@@ -56,6 +62,17 @@ def verify_token(jwt_token, email=""):
     Silently verifies a saved JWT token on app startup.
     Returns (True, account_info) or (False, error_message)
     """
+    import os as _os
+    from datetime import datetime as _dt
+    def _vlog(msg):
+        try:
+            d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
+            _os.makedirs(d, exist_ok=True)
+            with open(_os.path.join(d, "debug.log"), "a") as f:
+                f.write(f"[{_dt.now().strftime('%H:%M:%S')}] verify: {msg}\n")
+        except Exception:
+            pass
+
     try:
         response = requests.post(
             f"{WEBSITE_URL}/api/auth/verify",
@@ -64,6 +81,8 @@ def verify_token(jwt_token, email=""):
             timeout=10,
         )
         data = response.json()
+        _vlog(f"status={response.status_code} body={data}")
+
         if response.status_code == 200 and data.get("valid"):
             return True, {
                 "email":         email,
@@ -71,10 +90,22 @@ def verify_token(jwt_token, email=""):
                 "trial_ends_at": data.get("trial_ends_at"),
                 "trial_ended":   data.get("trial_ended", False),
             }
-        return False, data.get("message", "Session expired")
-    except Exception:
-        # If server unreachable allow offline use with saved token
+        # Reached the server and it said NOT valid — block access.
+        return False, {
+            "message":     data.get("message", "Session expired"),
+            "trial_ended": data.get("trial_ended", False),
+        }
+
+    except requests.exceptions.RequestException as e:
+        # Only a genuine CONNECTION failure (offline / server down) grants
+        # temporary offline access. A bad response is NOT a connection error
+        # and must never fall here.
+        _vlog(f"connection error (offline grace): {e}")
         return True, {"email": email, "plan": "unknown", "trial_ended": False}
+    except Exception as e:
+        # Any other error (bad JSON, unexpected shape) — fail CLOSED, block.
+        _vlog(f"unexpected error (blocking): {e}")
+        return False, {"message": "Could not verify session", "trial_ended": False}
 
 
 class GenerateError(Exception):

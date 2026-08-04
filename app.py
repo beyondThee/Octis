@@ -118,12 +118,22 @@ threading.Thread(target=_load_whisper, daemon=True).start()
 
 @app.route("/api/license/status")
 def license_status():
-    return jsonify({
+    _payload = {
         "licensed":    state["licensed"],
         "trial_ended": state["trial_ended"],
         "email":       state["email"],
         "plan":        state["plan"],
-    })
+    }
+    try:
+        import os as _os
+        from datetime import datetime as _dt
+        _d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
+        _os.makedirs(_d, exist_ok=True)
+        with open(_os.path.join(_d, "debug.log"), "a") as _f:
+            _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] license/status -> {_payload}\n")
+    except Exception:
+        pass
+    return jsonify(_payload)
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -136,6 +146,18 @@ def auth_login():
         return jsonify({"valid": False, "error": "Please enter your email and password"}), 400
 
     valid, result, info = login(email, password)
+
+    # Log exactly what the website returned so we can see, not guess
+    try:
+        import os as _os
+        from datetime import datetime as _dt
+        _d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
+        _os.makedirs(_d, exist_ok=True)
+        with open(_os.path.join(_d, "debug.log"), "a") as _f:
+            _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] login -> valid={valid} info={info}\n")
+    except Exception:
+        pass
+
     if valid:
         trial_ended = info.get("trial_ended", False) if info else False
         state["licensed"]    = not trial_ended
@@ -145,8 +167,15 @@ def auth_login():
         state["plan"]        = info.get("plan", "") if info else ""
         save_license({"token": result, "email": email})
         return jsonify({"valid": True, "trial_ended": trial_ended})
-    else:
-        return jsonify({"valid": False, "error": result}), 401
+
+    # Login refused. If it's an expired account, show the upgrade wall
+    # instead of a misleading "wrong password" message.
+    if info and info.get("trial_ended"):
+        state["licensed"]    = False
+        state["trial_ended"] = True
+        return jsonify({"valid": False, "trial_ended": True, "error": result}), 403
+
+    return jsonify({"valid": False, "error": result}), 401
 
 
 @app.route("/")
