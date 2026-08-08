@@ -62,6 +62,47 @@ def save_history(h):
         json.dump(h, f, indent=2)
 
 
+def load_user_history():
+    """
+    Return only the lectures belonging to the currently logged-in account.
+
+    Entries created before accounts were scoped have no "email" field.
+    The first time a signed-in user loads their history, those legacy
+    entries are claimed for that account so nothing is lost.
+
+    Returns a list of (full_index, entry) so callers can still write
+    back to the correct row in the full history file.
+    """
+    history = load_history()
+    email   = (state.get("email") or "").strip().lower()
+
+    # The session check runs in a background thread on startup, so
+    # state["email"] may not be populated yet when the page first loads.
+    # Fall back to the saved session file so the user's recordings don't
+    # briefly appear empty.
+    if not email:
+        email = (load_license().get("email") or "").strip().lower()
+
+    # No one signed in — show nothing rather than leaking another
+    # account's recordings.
+    if not email:
+        return []
+
+    # Claim any untagged legacy entries for this account (one time only)
+    changed = False
+    for entry in history:
+        if not entry.get("email"):
+            entry["email"] = email
+            changed = True
+    if changed:
+        save_history(history)
+
+    return [
+        (i, e) for i, e in enumerate(history)
+        if (e.get("email") or "").strip().lower() == email
+    ]
+
+
 # ── App state ──────────────────────────────────────────────────
 state = {
     "recording":    False,
@@ -185,7 +226,7 @@ def index():
 
 @app.route("/api/history")
 def get_history():
-    return jsonify(load_history())
+    return jsonify([e for _, e in load_user_history()])
 
 
 @app.route("/api/status")
@@ -293,11 +334,11 @@ def pause_recording():
 
 @app.route("/api/history/<int:index>")
 def get_history_entry(index):
-    history = load_history()
-    if index < 0 or index >= len(history):
+    scoped = load_user_history()
+    if index < 0 or index >= len(scoped):
         return jsonify({"error": "Entry not found"}), 404
 
-    entry  = history[index]
+    entry  = scoped[index][1]
     folder = entry.get("folder", "")
 
     def read_file(name):
@@ -329,12 +370,13 @@ def generate_saved(index):
     Generate notes for a lecture that was saved but never generated
     (recorded while offline or while the site was down).
     """
-    history = load_history()
-    if index < 0 or index >= len(history):
+    scoped = load_user_history()
+    if index < 0 or index >= len(scoped):
         return jsonify({"error": "Entry not found"}), 404
 
-    entry  = history[index]
-    folder = entry.get("folder", "")
+    full_index, entry = scoped[index]
+    history = load_history()
+    folder  = entry.get("folder", "")
 
     # Read the saved raw transcript
     tpath = os.path.join(folder, "transcript.txt")
@@ -366,7 +408,7 @@ def generate_saved(index):
     name = results.get("title", "").strip() or entry.get("name", "Lecture")
     entry["name"]   = name
     entry["status"] = "generated"
-    history[index]  = entry
+    history[full_index] = entry
     save_history(history)
 
     results["transcript"] = transcript
@@ -383,15 +425,16 @@ def add_textbook():
     if not textbook_text:
         return jsonify({"error": "No textbook text provided"}), 400
 
-    history = load_history()
+    scoped = load_user_history()
     if index == -1:
-        actual_index = len(history) - 1
-    elif 0 <= index < len(history):
-        actual_index = index
+        if not scoped:
+            return jsonify({"error": "Entry not found"}), 404
+        entry = scoped[-1][1]
+    elif 0 <= index < len(scoped):
+        entry = scoped[index][1]
     else:
         return jsonify({"error": "Entry not found"}), 404
 
-    entry  = history[actual_index]
     folder = entry.get("folder", "")
 
     def read_file(name):
@@ -436,7 +479,7 @@ def add_textbook():
                 "summary":    summary,
                 "transcript": transcript,
                 "entry":      entry,
-                "_index":     actual_index,
+                "_index":     index if index != -1 else len(scoped) - 1,
             }
             state["generating"] = False
             state["status"]     = "Done!"
@@ -456,15 +499,32 @@ def rename_entry():
     index   = data.get("index", -1)
     name    = data.get("name", "").strip()
     history = load_history()
+    scoped  = load_user_history()
 
     if index == -1:
-        # Most recent entry (just recorded)
-        if history:
-            history[-1]["name"] = name
-    elif 0 <= index < len(history):
-        history[index]["name"] = name
+        # Most recent entry belonging to this account (just recorded)
+        if scoped:
+            history[scoped[-1][0]]["name"] = name
+    elif 0 <= index < len(scoped):
+        history[scoped[index][0]]["name"] = name
 
     save_history(history)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    """Sign the user out and clear the saved session from disk."""
+    state["licensed"]    = False
+    state["trial_ended"] = False
+    state["jwt_token"]   = ""
+    state["email"]       = ""
+    state["plan"]        = ""
+    try:
+        if os.path.exists(LICENSE_FILE):
+            os.remove(LICENSE_FILE)
+    except Exception:
+        pass
     return jsonify({"ok": True})
 
 
@@ -560,6 +620,7 @@ def stop_recording():
                 "duration": f"{duration_mins} min",
                 "folder":   output_folder,
                 "status":   "generated",
+                "email":    (state.get("email") or "").strip().lower(),
             }
             history = load_history()
             history.append(entry)
@@ -600,6 +661,7 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
             "duration": f"{duration_mins} min",
             "folder":   output_folder,
             "status":   "ungenerated",
+            "email":    (state.get("email") or "").strip().lower(),
         }
         history = load_history()
         history.append(entry)

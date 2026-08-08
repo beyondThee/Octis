@@ -548,7 +548,18 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;">v1.1.6</span></span>
+  <span class="nav-title">Quick Notes <span style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;">v1.1.7</span></span>
+
+  <!-- Signed-in account + logout -->
+  <div id="accountBox" style="display:none;margin-left:auto;margin-right:12px;align-items:center;gap:10px;">
+    <span id="accountEmail" style="font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button onclick="doLogout()" title="Sign out"
+      style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:background 0.2s,color 0.2s;"
+      onmouseover="this.style.background='var(--blue-light)';this.style.color='var(--blue)'"
+      onmouseout="this.style.background='transparent';this.style.color='var(--muted)'">
+      Sign out
+    </button>
+  </div>
   <button class="theme-btn" id="themeBtn" title="Toggle theme">
     <!-- Moon icon -->
     <svg class="icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1394,11 +1405,27 @@
   async function checkLicense() {
     const res  = await fetch('/api/license/status');
     const data = await res.json();
+
+    // Show which account is signed in
+    const box = document.getElementById('accountBox');
+    if (data.email) {
+      document.getElementById('accountEmail').textContent = data.email;
+      box.style.display = 'flex';
+    } else {
+      box.style.display = 'none';
+    }
+
     if (data.trial_ended) {
       document.getElementById('trial-screen').style.display = 'flex';
     } else if (!data.licensed) {
       document.getElementById('license-screen').style.display = 'flex';
     }
+  }
+
+  async function doLogout() {
+    if (!confirm('Sign out of Quick Notes?\n\nYour recordings stay saved on this computer.')) return;
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.reload();
   }
 
   // ── Login ─────────────────────────────────────────────────────
@@ -1424,6 +1451,9 @@
 
     if (data.valid) {
       document.getElementById('license-screen').style.display = 'none';
+      // Show the signed-in account in the navbar
+      document.getElementById('accountEmail').textContent = email;
+      document.getElementById('accountBox').style.display  = 'flex';
       if (data.trial_ended) {
         document.getElementById('trial-screen').style.display = 'flex';
       } else {
