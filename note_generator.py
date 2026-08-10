@@ -60,19 +60,8 @@ def login(email, password):
 def verify_token(jwt_token, email=""):
     """
     Silently verifies a saved JWT token on app startup.
-    Returns (True, account_info) or (False, error_message)
+    Returns (True, account_info) or (False, info_dict)
     """
-    import os as _os
-    from datetime import datetime as _dt
-    def _vlog(msg):
-        try:
-            d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
-            _os.makedirs(d, exist_ok=True)
-            with open(_os.path.join(d, "debug.log"), "a") as f:
-                f.write(f"[{_dt.now().strftime('%H:%M:%S')}] verify: {msg}\n")
-        except Exception:
-            pass
-
     try:
         response = requests.post(
             f"{WEBSITE_URL}/api/auth/verify",
@@ -81,7 +70,6 @@ def verify_token(jwt_token, email=""):
             timeout=10,
         )
         data = response.json()
-        _vlog(f"status={response.status_code} body={data}")
 
         if response.status_code == 200 and data.get("valid"):
             return True, {
@@ -96,15 +84,13 @@ def verify_token(jwt_token, email=""):
             "trial_ended": data.get("trial_ended", False),
         }
 
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         # Only a genuine CONNECTION failure (offline / server down) grants
         # temporary offline access. A bad response is NOT a connection error
         # and must never fall here.
-        _vlog(f"connection error (offline grace): {e}")
         return True, {"email": email, "plan": "unknown", "trial_ended": False}
-    except Exception as e:
+    except Exception:
         # Any other error (bad JSON, unexpected shape) — fail CLOSED, block.
-        _vlog(f"unexpected error (blocking): {e}")
         return False, {"message": "Could not verify session", "trial_ended": False}
 
 

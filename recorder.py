@@ -70,7 +70,6 @@ class Recorder:
         try:
             device_info = sd.query_devices(kind='input')
             native_rate = int(device_info['default_samplerate'])
-            _log(f"Recording device: {device_info['name']}, rate: {native_rate}")
         except Exception as e:
             _log(f"Device query failed: {e}")
             native_rate = self.sample_rate
@@ -112,12 +111,9 @@ class Recorder:
 
     def _transcribe(self, model, audio_data):
         try:
-            # Check if audio has any signal at all
+            # Skip near-silent audio without burning CPU on it
             rms = float(np.sqrt(np.mean(audio_data ** 2)))
-            _log(f"Audio RMS level: {rms:.6f}")
-
             if rms < 0.0001:
-                _log("WARNING: Audio appears to be silence or near-silence")
                 return ""
 
             # Pass numpy array directly to Whisper — bypasses ffmpeg entirely
@@ -130,10 +126,9 @@ class Recorder:
                 no_speech_threshold=0.3,
                 logprob_threshold=-2.0,
             )
-            text = result["text"].strip()
-            _log(f"Whisper result: '{text[:100]}'")
-            return text
+            return result["text"].strip()
         except Exception as e:
+            # Errors only — never log lecture content
             _log(f"Transcribe error: {e}")
             return ""
 

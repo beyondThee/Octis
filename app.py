@@ -64,38 +64,39 @@ def save_history(h):
 
 def load_user_history():
     """
-    Return only the lectures belonging to the currently logged-in account.
-
-    Entries created before accounts were scoped have no "email" field.
-    The first time a signed-in user loads their history, those legacy
-    entries are claimed for that account so nothing is lost.
-
-    Returns a list of (full_index, entry) so callers can still write
-    back to the correct row in the full history file.
+    Return only the lectures belonging to the currently logged-in account,
+    as (full_index, entry) pairs so callers can write back correctly.
     """
     history = load_history()
     email   = (state.get("email") or "").strip().lower()
 
     # The session check runs in a background thread on startup, so
     # state["email"] may not be populated yet when the page first loads.
-    # Fall back to the saved session file so the user's recordings don't
-    # briefly appear empty.
     if not email:
         email = (load_license().get("email") or "").strip().lower()
 
-    # No one signed in — show nothing rather than leaking another
-    # account's recordings.
+    # No one signed in — show nothing rather than leaking recordings.
     if not email:
         return []
 
-    # Claim any untagged legacy entries for this account (one time only)
-    changed = False
-    for entry in history:
-        if not entry.get("email"):
-            entry["email"] = email
-            changed = True
-    if changed:
-        save_history(history)
+    # One-time migration: lectures made before accounts were scoped have
+    # no "email". Claim them for the FIRST account that signs in after
+    # updating, then never again — otherwise a brand new account could
+    # take over someone else's recordings.
+    marker = os.path.join(OCTIS_DATA_DIR, ".history_claimed")
+    if not os.path.exists(marker):
+        changed = False
+        for entry in history:
+            if not entry.get("email"):
+                entry["email"] = email
+                changed = True
+        if changed:
+            save_history(history)
+        try:
+            with open(marker, "w") as f:
+                f.write(email)
+        except Exception:
+            pass
 
     return [
         (i, e) for i, e in enumerate(history)
@@ -159,22 +160,12 @@ threading.Thread(target=_load_whisper, daemon=True).start()
 
 @app.route("/api/license/status")
 def license_status():
-    _payload = {
+    return jsonify({
         "licensed":    state["licensed"],
         "trial_ended": state["trial_ended"],
         "email":       state["email"],
         "plan":        state["plan"],
-    }
-    try:
-        import os as _os
-        from datetime import datetime as _dt
-        _d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
-        _os.makedirs(_d, exist_ok=True)
-        with open(_os.path.join(_d, "debug.log"), "a") as _f:
-            _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] license/status -> {_payload}\n")
-    except Exception:
-        pass
-    return jsonify(_payload)
+    })
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -187,17 +178,6 @@ def auth_login():
         return jsonify({"valid": False, "error": "Please enter your email and password"}), 400
 
     valid, result, info = login(email, password)
-
-    # Log exactly what the website returned so we can see, not guess
-    try:
-        import os as _os
-        from datetime import datetime as _dt
-        _d = _os.path.join(_os.path.expanduser("~"), "Documents", "Octis")
-        _os.makedirs(_d, exist_ok=True)
-        with open(_os.path.join(_d, "debug.log"), "a") as _f:
-            _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] login -> valid={valid} info={info}\n")
-    except Exception:
-        pass
 
     if valid:
         trial_ended = info.get("trial_ended", False) if info else False
