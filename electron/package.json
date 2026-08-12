@@ -1,6 +1,6 @@
 {
   "name": "quick-notes",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "AI-powered lecture note taker",
   "main": "main.js",
   "scripts": {
@@ -37,12 +37,14 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "../icon.ico"
+      "icon": "../icon.ico",
+      "artifactName": "Quick-Notes-Setup.${ext}"
     },
     "mac": {
       "target": "dmg",
       "icon": "../icon.png",
-      "category": "public.app-category.education"
+      "category": "public.app-category.education",
+      "artifactName": "Quick-Notes.${ext}"
     },
     "nsis": {
       "oneClick": true,
