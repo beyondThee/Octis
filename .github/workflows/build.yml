@@ -26,25 +26,54 @@ jobs:
         run: |
           pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch
 
-      - name: Install ffmpeg
+      - name: Install ffmpeg and update spec paths
+        shell: powershell
         run: |
-          choco install ffmpeg -y
+          choco install ffmpeg -y --no-progress
+
+          # A new step starts a fresh shell, so pull in the PATH that
+          # chocolatey just modified instead of relying on the old one.
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+                      [System.Environment]::GetEnvironmentVariable("Path","User")
+
+          $ffmpegPath = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+
+          # Fallback: search chocolatey's install locations directly
+          if (-not $ffmpegPath) {
+            Write-Host "ffmpeg not on PATH - searching install directories..."
+            $hit = Get-ChildItem -Path "C:\ProgramData\chocolatey","C:\tools" `
+                     -Filter ffmpeg.exe -Recurse -ErrorAction SilentlyContinue |
+                   Select-Object -First 1
+            if ($hit) { $ffmpegPath = $hit.FullName }
+          }
+
+          if (-not $ffmpegPath) {
+            Write-Error "ffmpeg could not be found after install"
+            exit 1
+          }
+
+          $ffprobeDir  = Split-Path $ffmpegPath
+          $ffprobePath = Join-Path $ffprobeDir "ffprobe.exe"
+
+          if (-not (Test-Path $ffprobePath)) {
+            $probeHit = Get-ChildItem -Path "C:\ProgramData\chocolatey","C:\tools" `
+                          -Filter ffprobe.exe -Recurse -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
+            if ($probeHit) { $ffprobePath = $probeHit.FullName }
+          }
+
+          Write-Host "ffmpeg : $ffmpegPath"
+          Write-Host "ffprobe: $ffprobePath"
+
+          (Get-Content app_build.spec) `
+            -replace "FFMPEG_BIN.*=.*", "FFMPEG_BIN  = r'$ffmpegPath'" `
+            -replace "FFPROBE_BIN.*=.*", "FFPROBE_BIN = r'$ffprobePath'" |
+            Set-Content app_build.spec
 
       - name: Write config.py
         run: |
           echo "ANTHROPIC_API_KEY = ''" > config.py
         shell: bash
-
-      - name: Update ffmpeg path in spec
-        run: |
-          $ffmpegPath = (Get-Command ffmpeg).Source
-          $ffprobeDir = Split-Path $ffmpegPath
-          $ffprobePath = Join-Path $ffprobeDir "ffprobe.exe"
-          (Get-Content app_build.spec) `
-            -replace "FFMPEG_BIN.*=.*", "FFMPEG_BIN  = r'$ffmpegPath'" `
-            -replace "FFPROBE_BIN.*=.*", "FFPROBE_BIN = r'$ffprobePath'" |
-            Set-Content app_build.spec
-        shell: powershell
 
       - name: Build Python backend
         run: |
