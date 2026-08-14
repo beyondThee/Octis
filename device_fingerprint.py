@@ -15,6 +15,25 @@ import os
 def get_fingerprint():
     """
     Generates a stable unique fingerprint for this device.
+
+    This must NEVER raise. The desktop app sends it on login, and the
+    website uses its presence to start the free trial — so a crash here
+    would leave a user unable to start their trial at all.
+    """
+    try:
+        return _build_fingerprint()
+    except Exception:
+        # Last-resort fallback: still stable per machine, just coarser.
+        try:
+            raw = f"{platform.node()}|{platform.system()}|{uuid.getnode()}"
+        except Exception:
+            raw = "unknown-device"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _build_fingerprint():
+    """
+    Generates a stable unique fingerprint for this device.
     Uses a combination of hardware identifiers that don't change
     between reboots or reinstalls.
     

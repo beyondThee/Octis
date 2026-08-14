@@ -120,29 +120,38 @@ state = {
     "jwt_token":    "",
     "email":        "",
     "plan":         "",
+    # False until the startup session check finishes. Without this the
+    # UI asks "are you licensed?" before the check completes, gets False,
+    # and wrongly shows the login screen every launch.
+    "session_checked": False,
 }
 
 # Load and validate saved session on startup
 def _validate_session():
-    saved = load_license()
-    token = saved.get("token", "")
-    email = saved.get("email", "")
-    if token and email:
-        valid, info = verify_token(token, email)
-        if valid:
-            trial_ended = info.get("trial_ended", False)
-            state["licensed"]    = not trial_ended
-            state["trial_ended"] = trial_ended
-            state["jwt_token"]   = token
-            state["email"]       = email
-            state["plan"]        = info.get("plan", "")
+    try:
+        saved = load_license()
+        token = saved.get("token", "")
+        email = saved.get("email", "")
+        if token and email:
+            valid, info = verify_token(token, email)
+            if valid:
+                trial_ended = info.get("trial_ended", False)
+                state["licensed"]    = not trial_ended
+                state["trial_ended"] = trial_ended
+                state["jwt_token"]   = token
+                state["email"]       = email
+                state["plan"]        = info.get("plan", "")
+            else:
+                # Token invalid or expired — require login again
+                state["licensed"]    = False
+                state["trial_ended"] = info.get("trial_ended", False) if isinstance(info, dict) else False
         else:
-            # Token invalid or expired — require login again
-            state["licensed"]    = False
-            state["trial_ended"] = info.get("trial_ended", False) if isinstance(info, dict) else False
-    else:
-        # No saved session — user must log in
-        state["licensed"] = False
+            # No saved session — user must log in
+            state["licensed"] = False
+    finally:
+        # Always mark the check complete, even if it errored, so the
+        # UI never waits forever.
+        state["session_checked"] = True
 
 threading.Thread(target=_validate_session, daemon=True).start()
 
@@ -165,6 +174,7 @@ def license_status():
         "trial_ended": state["trial_ended"],
         "email":       state["email"],
         "plan":        state["plan"],
+        "checking":    not state["session_checked"],
     })
 
 
@@ -500,6 +510,7 @@ def auth_logout():
     state["jwt_token"]   = ""
     state["email"]       = ""
     state["plan"]        = ""
+    state["session_checked"] = True
     try:
         if os.path.exists(LICENSE_FILE):
             os.remove(LICENSE_FILE)
