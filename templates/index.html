@@ -14,6 +14,7 @@
     --blue-hover:  #4A42CC;
     --blue-light:  #EEEDFE;
     --coral:       #D85A30;
+    --rec:         #1B7F79;   /* recording state - teal, matches logo */
     --coral-hover: #B84A25;
     --teal:        #1D9E75;
     --muted:       #9A9AA8;
@@ -69,7 +70,7 @@
 
   .nav-title {
     font-family: 'DM Serif Display', serif;
-    font-size: 17px;
+    font-size: 24px;
     color: var(--text);
     flex: 1;
     transition: color var(--transition);
@@ -94,15 +95,20 @@
 
   /* ── Main scroll area ─────────────────────────────────────── */
   main {
-    max-width: 760px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 32px 24px 60px;
+    padding: 28px 28px 60px;
+  }
+
+  /* Narrow (half-screen) windows: reclaim the side padding */
+  @media (max-width: 900px) {
+    main { padding: 20px 16px 48px; }
   }
 
   /* ── Record card ──────────────────────────────────────────── */
   .record-card {
     border-radius: 26px;
-    padding: 36px 24px 32px;
+    padding: 28px 24px 26px;
     text-align: center;
     background: var(--blue);
     transition: background 0.5s cubic-bezier(0.4,0,0.2,1);
@@ -110,12 +116,12 @@
     overflow: hidden;
   }
 
-  .record-card.recording { background: var(--coral); }
+  .record-card.recording { background: var(--rec); }
   .record-card.paused    { background: var(--blue); }
 
   .record-card h2 {
     font-family: 'DM Serif Display', serif;
-    font-size: 24px;
+    font-size: 30px;
     color: #fff;
     margin-bottom: 6px;
     transition: opacity 0.3s;
@@ -197,34 +203,86 @@
   .mic-btn:disabled { cursor: not-allowed; opacity: 0.6; }
 
   /* ── Sound wave bars ──────────────────────────────────────── */
+  /* ── Bubble visualizer ────────────────────────────────────
+     Fills the whole card and rises behind the content.          */
   .wave-bars {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    height: 32px;
-    margin-bottom: 4px;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
     opacity: 0;
-    transition: opacity 0.4s;
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity 0.6s;
   }
 
   .wave-bars.active { opacity: 1; }
 
+  /* Keep card content above the bubbles */
+  .record-card h2,
+  .record-card p,
+  .record-card .btn-row { position: relative; z-index: 2; }
+
   .wave-bar {
-    width: 4px;
-    border-radius: 2px;
-    background: rgba(255,255,255,0.85);
-    animation: wave 1.2s ease-in-out infinite;
-    transform-origin: bottom;
+    position: absolute;
+    bottom: -40px;
+    border-radius: 50%;
+    /* Glassy sphere: bright specular highlight, near-clear middle,
+       soft rim light at the lower edge — how a real bubble reads. */
+    background:
+      radial-gradient(circle at 30% 26%,
+        rgba(255,255,255,0.95) 0%,
+        rgba(255,255,255,0.40) 9%,
+        rgba(255,255,255,0.07) 34%,
+        rgba(255,255,255,0.03) 62%,
+        rgba(255,255,255,0.10) 88%);
+    border: 1px solid rgba(255,255,255,0.45);
+    box-shadow:
+      inset -3px -4px 8px rgba(255,255,255,0.18),
+      inset  2px  3px 6px rgba(255,255,255,0.10),
+      0 0 8px rgba(255,255,255,0.10);
+    animation: bubbleRise linear infinite;
   }
 
-  .wave-bar:nth-child(1) { animation-delay: 0s;    height: 12px; }
-  .wave-bar:nth-child(2) { animation-delay: 0.15s; height: 20px; }
-  .wave-bar:nth-child(3) { animation-delay: 0.3s;  height: 28px; }
-  .wave-bar:nth-child(4) { animation-delay: 0.45s; height: 20px; }
-  .wave-bar:nth-child(5) { animation-delay: 0.6s;  height: 14px; }
-  .wave-bar:nth-child(6) { animation-delay: 0.75s; height: 24px; }
-  .wave-bar:nth-child(7) { animation-delay: 0.9s;  height: 16px; }
+  /* Second, smaller highlight — sells the curved glass surface */
+  .wave-bar::after {
+    content: '';
+    position: absolute;
+    bottom: 16%;
+    right: 20%;
+    width: 16%;
+    height: 12%;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.45);
+    filter: blur(0.5px);
+  }
+
+  /* Bubbles wobble as they rise instead of tracking straight up */
+  @keyframes bubbleRise {
+    0%   { transform: translate(0, 0) scale(0.55); opacity: 0; }
+    10%  { opacity: 0.9; }
+    25%  { transform: translate(9px,  -70px) scale(0.8); }
+    45%  { transform: translate(-7px, -140px) scale(0.95); }
+    65%  { transform: translate(8px,  -210px) scale(1.05); }
+    85%  { transform: translate(-5px, -280px) scale(1.1); opacity: 0.7; }
+    100% { transform: translate(3px,  -340px) scale(1.18); opacity: 0; }
+  }
+
+  .wave-bar:nth-child(1)  { left:  3%; width: 16px; height: 16px; animation-duration: 7.5s;  animation-delay: 0s;   }
+  .wave-bar:nth-child(2)  { left:  9%; width:  9px; height:  9px; animation-duration: 9.2s;  animation-delay: 2.1s; }
+  .wave-bar:nth-child(3)  { left: 15%; width: 22px; height: 22px; animation-duration: 6.4s;  animation-delay: 4.3s; }
+  .wave-bar:nth-child(4)  { left: 21%; width: 12px; height: 12px; animation-duration: 8.7s;  animation-delay: 1.2s; }
+  .wave-bar:nth-child(5)  { left: 28%; width:  7px; height:  7px; animation-duration: 10.1s; animation-delay: 3.6s; }
+  .wave-bar:nth-child(6)  { left: 34%; width: 18px; height: 18px; animation-duration: 7.1s;  animation-delay: 5.4s; }
+  .wave-bar:nth-child(7)  { left: 41%; width: 11px; height: 11px; animation-duration: 8.3s;  animation-delay: 0.8s; }
+  .wave-bar:nth-child(8)  { left: 47%; width: 25px; height: 25px; animation-duration: 6.0s;  animation-delay: 3.1s; }
+  .wave-bar:nth-child(9)  { left: 54%; width:  8px; height:  8px; animation-duration: 9.6s;  animation-delay: 6.2s; }
+  .wave-bar:nth-child(10) { left: 60%; width: 14px; height: 14px; animation-duration: 7.8s;  animation-delay: 1.9s; }
+  .wave-bar:nth-child(11) { left: 66%; width: 20px; height: 20px; animation-duration: 6.7s;  animation-delay: 4.8s; }
+  .wave-bar:nth-child(12) { left: 72%; width: 10px; height: 10px; animation-duration: 9.0s;  animation-delay: 2.7s; }
+  .wave-bar:nth-child(13) { left: 78%; width: 17px; height: 17px; animation-duration: 7.3s;  animation-delay: 5.9s; }
+  .wave-bar:nth-child(14) { left: 84%; width:  6px; height:  6px; animation-duration: 10.5s; animation-delay: 0.4s; }
+  .wave-bar:nth-child(15) { left: 89%; width: 23px; height: 23px; animation-duration: 6.2s;  animation-delay: 3.9s; }
+  .wave-bar:nth-child(16) { left: 94%; width: 13px; height: 13px; animation-duration: 8.9s;  animation-delay: 1.5s; }
 
   @keyframes wave {
     0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
@@ -282,9 +340,9 @@
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px 20px;
+    padding: 22px 26px;
     margin-bottom: 20px;
-    max-height: 380px;
+    max-height: 46vh;
     overflow-y: auto;
     display: none;
     transition: background var(--transition), border-color var(--transition);
@@ -294,9 +352,9 @@
 
   .transcript-section p {
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    color: var(--text-sub);
-    line-height: 1.7;
+    font-size: 20px;
+    color: var(--text);
+    line-height: 1.75;
     transition: color var(--transition);
   }
 
@@ -548,7 +606,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;">v1.2.2</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.3</span></span>
 
   <!-- Signed-in account + logout -->
   <div id="accountBox" style="display:none;margin-left:auto;margin-right:12px;align-items:center;gap:10px;">
@@ -593,13 +651,14 @@
 
       <!-- Sound wave bars -->
       <div class="wave-bars" id="waveBars">
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
-        <div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div>
       </div>
 
       <!-- Button row -->
@@ -940,6 +999,7 @@
     // Card → coral
     const card = document.getElementById('recordCard');
     card.classList.add('recording');
+    { const v = document.getElementById('versionLabel'); if (v) v.style.opacity = '0'; }
     document.getElementById('cardTitle').textContent    = 'Recording in progress';
     document.getElementById('cardSubtitle').textContent = 'Listening to your lecture…';
     document.getElementById('tapLabel').style.display   = 'none';
@@ -1003,6 +1063,7 @@
   // ── Stop ─────────────────────────────────────────────────────
   async function onStop() {
     isRecording = false;
+    { const v = document.getElementById('versionLabel'); if (v) v.style.opacity = '1'; }
 
     // Close SSE word stream
     if (window._typingSource) {
