@@ -86,8 +86,10 @@ function startPracticeTest() {
     return;
   }
 
-  document.getElementById("testNotStarted").style.display = "none";
-  document.getElementById("testLoading").style.display    = "block";
+  var notStarted = document.getElementById("testNotStarted");
+  if (notStarted) notStarted.style.display = "none";
+  document.getElementById("testLoading").style.display = "block";
+  if (typeof showStudyTip === "function") showStudyTip();
 
   var transcript = document.getElementById("tab-transcript").textContent ||
                    document.getElementById("tab-notes").textContent || "";
@@ -95,7 +97,12 @@ function startPracticeTest() {
   fetch("/api/practice-test", {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ transcript: transcript })
+    body:    JSON.stringify({
+      transcript: transcript,
+      index:      (typeof window._currentResultsIndex === "number"
+                   && window._currentResultsIndex >= 0)
+                  ? window._currentResultsIndex : null
+    })
   })
   .then(function (res) { return res.json(); })
   .then(function (data) {

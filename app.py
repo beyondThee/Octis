@@ -15,13 +15,16 @@ The app opens automatically in your default browser.
 
 import threading
 import json
+import random
 import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, Response
 from recorder import Recorder
 from transcriber import Transcriber
-from note_generator import NoteGenerator, login, verify_token
+import requests
+from note_generator import NoteGenerator, login, verify_token, WEBSITE_URL
 from output_saver import OutputSaver
+import store
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
@@ -60,6 +63,18 @@ def load_history():
 def save_history(h):
     with open(HISTORY_FILE, "w") as f:
         json.dump(h, f, indent=2)
+
+
+def current_email():
+    """
+    The signed-in account. state["email"] is empty for a moment at
+    startup while the session check runs in a background thread, so
+    fall back to the saved session file rather than returning nothing.
+    """
+    email = (state.get("email") or "").strip().lower()
+    if not email:
+        email = (load_license().get("email") or "").strip().lower()
+    return email
 
 
 def load_user_history():
@@ -239,6 +254,10 @@ def start_recording():
     state["recording"]    = True
     state["paused"]       = False
     state["results"]      = None
+    # Exact clock time the lecture began — used to group recordings into
+    # classes later. Only the date was kept before, which can't tell a
+    # Tuesday 2pm class from a Thursday 9am lab.
+    state["started_at"]   = datetime.now().isoformat(timespec="seconds")
     state["record_start"] = datetime.now()
     state["status"]       = "Recording..."
     state["transcript"]   = ""
@@ -519,30 +538,381 @@ def auth_logout():
     return jsonify({"ok": True})
 
 
+@app.route("/api/lecture/<int:index>/flashcards", methods=["POST"])
+def save_flashcards(index):
+    """
+    Persist edited flashcards back to the lecture's folder. Without this
+    every edit was lost as soon as the lecture was closed.
+    """
+    scoped = load_user_history()
+    if index < 0 or index >= len(scoped):
+        return jsonify({"error": "Entry not found"}), 404
+
+    entry  = scoped[index][1]
+    folder = entry.get("folder", "")
+    text   = (request.get_json() or {}).get("flashcards", "")
+
+    path = os.path.join(folder, "flashcards.txt")
+    if not os.path.exists(path):
+        return jsonify({"error": "Lecture files not found"}), 404
+
+    try:
+        # Keep the header line output_saver wrote, replace the body.
+        with open(path, "r", encoding="utf-8") as f:
+            existing = f.read().split("\n")
+        header = "\n".join(existing[:2]) if len(existing) > 2 else ""
+        with open(path, "w", encoding="utf-8") as f:
+            f.write((header + "\n" + text) if header else text)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"ok": True})
+
+
+@app.route("/api/lecture/<int:index>/progress", methods=["GET", "POST"])
+def card_progress(index):
+    """Read or update per-card mastery for a lecture."""
+    scoped = load_user_history()
+    if index < 0 or index >= len(scoped):
+        return jsonify({"error": "Entry not found"}), 404
+
+    folder = scoped[index][1].get("folder", "")
+
+    if request.method == "GET":
+        return jsonify(store.load_progress(folder))
+
+    data = request.get_json() or {}
+    card = store.record_answer(
+        folder,
+        data.get("card", ""),
+        bool(data.get("correct")),
+        bool(data.get("confident")),
+    )
+    return jsonify(card)
+
+
+@app.route("/api/classes", methods=["GET", "POST"])
+def classes_route():
+    email = current_email()
+    if not email:
+        return jsonify([]) if request.method == "GET" else (jsonify({"error": "Not signed in"}), 401)
+
+    if request.method == "GET":
+        return jsonify(store.load_classes(email))
+
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Class needs a name"}), 400
+
+    return jsonify(store.create_class(email, name, data.get("days"), data.get("times")))
+
+
+@app.route("/api/classes/<class_id>", methods=["PATCH", "DELETE"])
+def class_detail(class_id):
+    email = current_email()
+    if not email:
+        return jsonify({"error": "Not signed in"}), 401
+
+    if request.method == "DELETE":
+        if not store.delete_class(email, class_id):
+            return jsonify({"error": "Class not found"}), 404
+        # Lectures survive — they just become unassigned.
+        history = load_history()
+        for e in history:
+            if e.get("class_id") == class_id:
+                e["class_id"] = None
+        save_history(history)
+        return jsonify({"ok": True})
+
+    data    = request.get_json() or {}
+    updated = store.update_class(email, class_id, **data)
+    if not updated:
+        return jsonify({"error": "Class not found"}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/classes/merge", methods=["POST"])
+def merge_classes_route():
+    """Fold one class into another and repoint its lectures."""
+    email = current_email()
+    if not email:
+        return jsonify({"error": "Not signed in"}), 401
+
+    data   = request.get_json() or {}
+    keep   = data.get("keep_id")
+    absorb = data.get("absorb_id")
+
+    if not store.merge_classes(email, keep, absorb):
+        return jsonify({"error": "Could not merge those classes"}), 400
+
+    history = load_history()
+    for e in history:
+        if e.get("class_id") == absorb:
+            e["class_id"] = keep
+    save_history(history)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/lecture/<int:index>/class", methods=["POST"])
+def assign_class(index):
+    """Assign (or clear) the class a lecture belongs to."""
+    scoped = load_user_history()
+    if index < 0 or index >= len(scoped):
+        return jsonify({"error": "Entry not found"}), 404
+
+    full_index = scoped[index][0]
+    history    = load_history()
+    history[full_index]["class_id"] = (request.get_json() or {}).get("class_id")
+    save_history(history)
+    return jsonify({"ok": True})
+
+
+def _read_flashcards(folder):
+    """Pull the flashcard text out of a lecture folder, header stripped."""
+    path = os.path.join(folder, "flashcards.txt")
+    if not os.path.exists(path):
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        lines = content.split("\n")
+        return "\n".join(lines[2:]).strip() if len(lines) > 2 else content.strip()
+    except Exception:
+        return ""
+
+
+@app.route("/api/cram/build", methods=["POST"])
+def build_cram():
+    """
+    Build (or top up) the question pool for a set of lectures.
+
+    Cached per class so a second cram session doesn't pay to regenerate.
+    When new lectures have been recorded since, only those are generated
+    and merged into the existing pool.
+    """
+    data      = request.get_json() or {}
+    indices   = data.get("lectures", [])
+    class_id  = data.get("class_id") or "_adhoc"
+    minutes   = int(data.get("minutes", 15))
+    # A small opening batch returns in a few seconds so the student can
+    # start while the full set generates behind them.
+    quick     = bool(data.get("quick"))
+
+    scoped = load_user_history()
+    chosen = [scoped[i] for i in indices if 0 <= i < len(scoped)]
+    if not chosen:
+        return jsonify({"error": "No lectures selected"}), 400
+
+    # Roughly two questions per minute, capped so one session can't
+    # generate an unusable wall of questions.
+    want = max(10, min(minutes * 2, 60))
+
+    # Opening batch: pull questions already saved on disk from previous
+    # practice tests. No API call, no wait — the session starts instantly
+    # and the generated set catches up behind it.
+    if quick:
+        opening = []
+        for _, entry in chosen:
+            folder = entry.get("folder", "")
+            path   = os.path.join(folder, "practice_test.json")
+            if not os.path.exists(path):
+                continue
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                for q in saved.get("questions", []):
+                    # Open-ended needs Claude to grade — not usable here
+                    if q.get("type") in ("mc", "tf"):
+                        q["lecture"] = entry.get("name", "Lecture")
+                        opening.append(q)
+            except Exception:
+                continue
+
+        # No saved tests for these lectures — fall back to flashcards,
+        # which every lecture always has. Recall-style warm-up questions
+        # instead of an empty wait.
+        if not opening:
+            for _, entry in chosen:
+                cards = _read_flashcards(entry.get("folder", ""))
+                if not cards:
+                    continue
+                q_text = None
+                for line in cards.split("\n"):
+                    line = line.strip()
+                    if line.startswith("Q:"):
+                        q_text = line[2:].strip()
+                    elif line.startswith("A:") and q_text:
+                        opening.append({
+                            "type":     "recall",
+                            "question": q_text,
+                            "answer":   line[2:].strip(),
+                            "lecture":  entry.get("name", "Lecture"),
+                        })
+                        q_text = None
+
+        random.shuffle(opening)
+        return jsonify({"questions": opening[:12], "quick": True, "cached": True})
+
+    cached       = store.load_cram(class_id)
+    have_folders = set(cached.get("lectures", [])) if cached else set()
+
+    # Newest first — recent material is least consolidated
+    chosen = sorted(chosen, key=lambda t: t[1].get("started_at", ""), reverse=True)
+
+    new_lectures = []
+    for _, entry in chosen:
+        folder = entry.get("folder", "")
+        if folder in have_folders:
+            continue
+        cards = _read_flashcards(folder)
+        if cards:
+            new_lectures.append({
+                "folder":     folder,
+                "title":      entry.get("name", "Lecture"),
+                "flashcards": cards,
+            })
+
+    # A ceiling only, not a target — the prompt tells Claude to stop when
+    # it runs out of distinct facts, so this just prevents an absurd ask
+    # when a student picks 40 lectures for a 15-minute session.
+    available = sum(l["flashcards"].count("Q:") for l in new_lectures)
+    if available:
+        want = min(want, available * 3)
+
+
+
+    # Everything already generated — serve the cache
+    if not new_lectures and cached:
+        return jsonify({"questions": cached.get("questions", []), "cached": True})
+
+    if not new_lectures:
+        return jsonify({"error": "These lectures have no flashcards to build from"}), 400
+
+    # Cap per the 40-lecture limit
+    new_lectures = new_lectures[:40]
+
+    try:
+        result = NoteGenerator(jwt_token=state["jwt_token"]).generate_cram(
+            [{"title": l["title"], "flashcards": l["flashcards"]} for l in new_lectures],
+            count=want,
+        )
+    except Exception as e:
+        reason = getattr(e, "reason", "")
+        msg = str(e).lower()
+        if not reason and ("connection" in msg or "resolve" in msg or "timed out" in msg):
+            reason = "offline"
+        return jsonify({"error": str(e), "reason": reason}), 502
+
+    questions = result.get("questions", [])
+    folders   = [l["folder"] for l in new_lectures]
+
+    if quick:
+        return jsonify({"questions": questions, "cached": False, "quick": True})
+
+    if cached:
+        store.merge_cram(class_id, questions, folders)
+        pool = store.load_cram(class_id).get("questions", [])
+    else:
+        store.save_cram(class_id, questions, folders)
+        pool = questions
+
+    return jsonify({"questions": pool, "cached": False})
+
+
+@app.route("/api/feedback", methods=["POST"])
+def send_feedback():
+    """
+    Forward a feature suggestion to the support inbox via the website's
+    existing contact endpoint — no new mail plumbing needed.
+    """
+    message = (request.get_json() or {}).get("message", "").strip()
+    if not message:
+        return jsonify({"error": "Message is empty"}), 400
+    if len(message) > 4000:
+        return jsonify({"error": "That message is too long"}), 400
+
+    # Crude per-process rate limit. An open message endpoint in a desktop
+    # app will get spammed eventually.
+    now  = datetime.now().timestamp()
+    last = state.get("last_feedback_at", 0)
+    if now - last < 30:
+        return jsonify({"error": "Give it a moment before sending another"}), 429
+
+    email   = current_email() or "unknown"
+    version = "1.2.6"
+
+    try:
+        resp = requests.post(
+            f"{WEBSITE_URL}/api/contact",
+            json={
+                "name":    "In-app suggestion",
+                "email":   email,
+                "subject": "Feature request (in-app)",
+                # Version included automatically — "this is broken" is far
+                # more useful with a build number attached.
+                "message": f"{message}\n\n---\nApp version: {version}",
+            },
+            timeout=20,
+        )
+        if resp.status_code >= 400:
+            return jsonify({"error": "Could not send right now"}), 502
+    except requests.exceptions.RequestException:
+        return jsonify({"error": "No internet connection"}), 503
+    except Exception:
+        return jsonify({"error": "Could not send right now"}), 502
+
+    state["last_feedback_at"] = now
+    return jsonify({"ok": True})
+
+
 @app.route("/api/practice-test", methods=["POST"])
 def practice_test():
-    data       = request.get_json()
+    """
+    Generate a practice test, or return the saved one.
+
+    Tests are written to the lecture folder so reopening a lecture
+    doesn't pay to regenerate the same questions — and so Cram can
+    reuse them instantly.
+    """
+    data       = request.get_json() or {}
     transcript = data.get("transcript", "").strip()
+    index      = data.get("index")
+
+    folder = ""
+    if index is not None:
+        scoped = load_user_history()
+        if 0 <= index < len(scoped):
+            folder = scoped[index][1].get("folder", "")
+
+    # Serve the saved test if we already have one
+    if folder:
+        saved = os.path.join(folder, "practice_test.json")
+        if os.path.exists(saved) and not data.get("force"):
+            try:
+                with open(saved, "r", encoding="utf-8") as f:
+                    return jsonify(json.load(f))
+            except Exception:
+                pass
+
     if not transcript:
         return jsonify({"error": "No transcript provided"}), 400
 
     try:
-        import requests as req
-        SERVER_URL = "https://web-production-2b0e5.up.railway.app"
-        APP_SECRET = "octis2026secretkey"
-        response   = req.post(
-            f"{SERVER_URL}/practice-test",
-            headers={"Content-Type": "application/json", "X-Octis-Secret": APP_SECRET,
-                     "X-Auth-Token": state.get("jwt_token", "")},
-            json={"transcript": transcript},
-            timeout=120,
-        )
-        print(f"DEBUG practice-test status: {response.status_code}")
-        print(f"DEBUG practice-test body: {response.text[:200]}")
-        return jsonify(response.json())
+        result = NoteGenerator(jwt_token=state["jwt_token"]).generate_practice_test(transcript)
     except Exception as e:
-        print(f"DEBUG practice-test error: {e}")
-        return jsonify({"error": str(e)}), 500
+        reason = getattr(e, "reason", "")
+        return jsonify({"error": str(e), "reason": reason}), 502
+
+    # Persist for next time
+    if folder and result.get("questions"):
+        try:
+            with open(os.path.join(folder, "practice_test.json"), "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2)
+        except Exception:
+            pass
+
+    return jsonify(result)
 
 
 @app.route("/api/rate-answer", methods=["POST"])
@@ -610,8 +980,10 @@ def stop_recording():
                 "date":     datetime.now().strftime("%b %d, %Y"),
                 "duration": f"{duration_mins} min",
                 "folder":   output_folder,
-                "status":   "generated",
-                "email":    (state.get("email") or "").strip().lower(),
+                "status":     "generated",
+                "email":      (state.get("email") or "").strip().lower(),
+                "started_at": state.get("started_at", ""),
+                "class_id":   None,
             }
             history = load_history()
             history.append(entry)
@@ -651,8 +1023,10 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
             "date":     datetime.now().strftime("%b %d, %Y"),
             "duration": f"{duration_mins} min",
             "folder":   output_folder,
-            "status":   "ungenerated",
-            "email":    (state.get("email") or "").strip().lower(),
+            "status":     "ungenerated",
+            "email":      (state.get("email") or "").strip().lower(),
+            "started_at": state.get("started_at", ""),
+            "class_id":   None,
         }
         history = load_history()
         history.append(entry)

@@ -39,13 +39,23 @@ def login(email, password):
         )
         data = response.json()
         if response.status_code == 200 and data.get("token"):
-            plan        = data.get("plan", "trial")
-            trial_ended = bool(data.get("trial_ended", False)) or plan == "expired"
+            plan = (data.get("plan") or "").strip().lower()
+
+            # Fail CLOSED: only these statuses grant access. Anything else
+            # ("expired", "no_trial", or a status added later) blocks the
+            # app rather than silently letting someone in for free.
+            ALLOWED = {"paid", "pro", "trial", "trial_active"}
+            blocked = plan not in ALLOWED or bool(data.get("trial_ended", False))
+
+            # A trial plan with no end date means the clock never started.
+            if plan in {"trial", "trial_active"} and not data.get("trial_ends_at"):
+                blocked = True
+
             return True, data.get("token"), {
                 "email":         email,
                 "plan":          plan,
                 "trial_ends_at": data.get("trial_ends_at"),
-                "trial_ended":   trial_ended,
+                "trial_ended":   blocked,
             }
         # No token issued — could be bad credentials OR an expired account
         if data.get("trial_ended"):
@@ -125,6 +135,28 @@ class NoteGenerator:
             headers=get_server_headers(self.jwt_token),
             json={"transcript": transcript},
             timeout=120,
+        )
+        return self._handle(response)
+
+    def generate_practice_test(self, transcript):
+        response = requests.post(
+            f"{SERVER_URL}/practice-test",
+            headers=get_server_headers(self.jwt_token),
+            json={"transcript": transcript},
+            timeout=150,
+        )
+        return self._handle(response)
+
+    def generate_cram(self, lectures, count=40):
+        """
+        lectures: [{"title": str, "flashcards": str}, ...]
+        Returns {"questions": [...]}.
+        """
+        response = requests.post(
+            f"{SERVER_URL}/cram",
+            headers=get_server_headers(self.jwt_token),
+            json={"lectures": lectures, "count": count},
+            timeout=180,
         )
         return self._handle(response)
 

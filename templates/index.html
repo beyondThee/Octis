@@ -203,6 +203,436 @@
   .mic-btn:disabled { cursor: not-allowed; opacity: 0.6; }
 
   /* ── Sound wave bars ──────────────────────────────────────── */
+  /* ── Inside the card: record area | classes ─────────────── */
+  .card-split {
+    display: grid;
+    grid-template-columns: 1fr 250px;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Divider stops short of top and bottom so the two halves still
+     read as one card rather than two panels. */
+  .card-split::after {
+    content: '';
+    position: absolute;
+    left: calc(100% - 250px);
+    top: 14%;
+    bottom: 14%;
+    width: 1px;
+    background: rgba(255,255,255,0.28);
+  }
+
+  .card-main { min-width: 0; }
+
+  @media (max-width: 860px) {
+    .card-split { grid-template-columns: 1fr; }
+    .card-split::after {
+      left: 10%; right: 10%; width: auto;
+      top: auto; bottom: auto;
+      height: 1px;
+      position: relative;
+      margin: 18px auto 4px;
+      display: block;
+    }
+  }
+
+  .classes-panel {
+    padding: 0 6px 0 26px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .classes-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    color: rgba(255,255,255,0.72);
+    margin-bottom: 10px;
+  }
+
+  .add-class-btn {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: transparent;
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .add-class-btn:hover { background: rgba(255,255,255,0.2); }
+
+  .class-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 9px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .class-row:hover { background: rgba(255,255,255,0.14); }
+
+  .class-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+
+  .class-name {
+    font-size: 14px;
+    color: #fff;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .class-count { font-size: 12px; color: rgba(255,255,255,0.6); }
+
+  .class-empty {
+    font-size: 13px;
+    color: rgba(255,255,255,0.55);
+    padding: 6px 9px;
+    line-height: 1.5;
+  }
+
+  .class-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: #fff;
+  }
+  .class-input::placeholder { color: rgba(255,255,255,0.55); }
+
+  /* ── Settings ────────────────────────────────────────────── */
+  .settings-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 950;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .settings-overlay.visible { display: flex; }
+
+  .settings-sheet {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 86vh;
+    overflow-y: auto;
+    padding: 24px 26px 28px;
+  }
+
+  .settings-head {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .settings-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px;
+    color: var(--text);
+    flex: 1;
+  }
+  .settings-x {
+    background: transparent;
+    border: none;
+    font-size: 26px;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 4px;
+  }
+
+  .settings-group {
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+  .settings-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .settings-note {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .settings-action {
+    padding: 9px 18px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .settings-action:hover { background: var(--blue-light); }
+
+  .cb-opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .cb-opt:hover { background: var(--blue-light); }
+  .cb-opt.on { border-color: var(--blue); border-width: 2px; }
+
+  .cb-swatches { display: flex; gap: 4px; margin-left: auto; }
+  .cb-swatches span {
+    width: 15px; height: 15px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  /* ── Cram selection screen ───────────────────────────────── */
+  .cram-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 800;
+    overflow-y: auto;
+    padding: 28px 24px 0;
+  }
+  .cram-screen.visible { display: block; }
+
+  .cram-inner { max-width: 1100px; margin: 0 auto; }
+  #cramList { padding-bottom: 8px; }
+
+  .cram-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+
+  .cram-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .cram-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .cram-sub {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  /* Unselected lectures dim right down; checking one brings it back */
+  .cram-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 15px 20px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    opacity: 0.4;
+    filter: grayscale(0.6);
+    transition: opacity 0.2s, filter 0.2s, border-color 0.2s;
+  }
+  .cram-card:hover { opacity: 0.72; }
+
+  .cram-card.selected {
+    opacity: 1;
+    filter: none;
+    border-color: var(--blue);
+  }
+
+  .cram-check {
+    width: 22px; height: 22px;
+    border-radius: 7px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .cram-card.selected .cram-check {
+    background: var(--blue);
+    border-color: var(--blue);
+  }
+  .cram-check svg { width: 13px; height: 13px; fill: #fff; opacity: 0; transition: opacity 0.2s; }
+  .cram-card.selected .cram-check svg { opacity: 1; }
+
+  .cram-bar {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg);
+    padding: 16px 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 18px;
+  }
+
+  .time-opt {
+    padding: 9px 16px;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .time-opt.on {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+
+  .cram-track {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .cram-track-fill {
+    height: 100%;
+    width: 0;
+    background: var(--blue);
+    border-radius: 3px;
+    transition: width 0.35s ease;
+  }
+
+  .cram-q {
+    font-size: 21px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 22px;
+  }
+
+  .cram-choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 15px 20px;
+    margin-bottom: 11px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.15s, background 0.15s;
+  }
+  .cram-choice:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--blue);
+  }
+  .cram-choice:disabled { cursor: default; }
+
+  .cram-feedback {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: 13px;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Class chip on each lecture row ──────────────────────── */
+  .lecture-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .lecture-chip:hover { border-color: var(--border); }
+
+  .lecture-chip.unassigned {
+    color: var(--muted);
+    border: 1px dashed var(--border);
+  }
+
+  .chip-menu {
+    position: absolute;
+    z-index: 200;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.16);
+    padding: 6px;
+    min-width: 180px;
+  }
+
+  .chip-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .chip-menu button:hover { background: var(--blue-light); }
+
   /* ── Bubble visualizer ────────────────────────────────────
      Fills the whole card and rises behind the content.          */
   .wave-bars {
@@ -606,18 +1036,28 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.3</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.6</span></span>
 
   <!-- Signed-in account + logout -->
-  <div id="accountBox" style="display:none;margin-left:auto;margin-right:12px;align-items:center;gap:10px;">
+  <div id="accountBox" style="display:none;margin-left:auto;margin-right:10px;align-items:center;">
     <span id="accountEmail" style="font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-    <button onclick="doLogout()" title="Sign out"
-      style="padding:5px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--muted);cursor:pointer;transition:background 0.2s,color 0.2s;"
-      onmouseover="this.style.background='var(--blue-light)';this.style.color='var(--blue)'"
-      onmouseout="this.style.background='transparent';this.style.color='var(--muted)'">
-      Sign out
-    </button>
   </div>
+  <button onclick="openSuggest()" id="suggestBtn" title="Suggest a feature"
+    style="position:absolute;left:50%;transform:translateX(-50%);
+           padding:6px 16px;background:transparent;border:1px dashed var(--border);
+           border-radius:10px;font-family:'DM Sans',sans-serif;font-size:12px;
+           color:var(--muted);cursor:pointer;transition:background 0.15s,color 0.15s;
+           white-space:nowrap;"
+    onmouseover="this.style.background='var(--blue-light)';this.style.color='var(--blue)'"
+    onmouseout="this.style.background='transparent';this.style.color='var(--muted)'">
+    Suggest a feature
+  </button>
+  <button class="theme-btn" id="settingsBtn" onclick="openSettings()" title="Settings"
+    style="margin-right:8px;">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88L2.83 14.5a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 15.5 12 3.5 3.5 0 0 1 12 15.5z"/>
+    </svg>
+  </button>
   <button class="theme-btn" id="themeBtn" title="Toggle theme">
     <!-- Moon icon -->
     <svg class="icon-moon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -644,8 +1084,9 @@
   <!-- Home screen -->
   <div id="home-screen">
 
-    <!-- Record card -->
     <div class="record-card" id="recordCard">
+     <div class="card-split">
+      <div class="card-main">
       <h2 id="cardTitle">Record a new class</h2>
       <p id="cardSubtitle">Tap below to start capturing your lecture</p>
 
@@ -691,6 +1132,17 @@
       </div>
 
       <div class="tap-label" id="tapLabel">TAP TO START RECORDING</div>
+      </div>
+
+      <!-- Classes, inside the card -->
+      <aside class="classes-panel" id="classesPanel">
+        <div class="classes-head">
+          <span>MY CLASSES</span>
+          <button class="add-class-btn" onclick="startAddClass(null)" title="Add a class">+</button>
+        </div>
+        <div id="classesList"></div>
+      </aside>
+     </div>
     </div>
 
     <!-- Progress bar -->
@@ -706,9 +1158,119 @@
       <p id="transcriptText"></p>
     </div>
 
+    <!-- Settings -->
+    <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings(event)">
+      <div class="settings-sheet" onclick="event.stopPropagation()">
+        <div class="settings-head">
+          <div class="settings-title">Settings</div>
+          <button class="settings-x" onclick="closeSettings()">&times;</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-label">ACCOUNT</div>
+          <div id="settingsEmail" style="font-size:14px;color:var(--text-sub);margin-bottom:12px;"></div>
+          <button class="settings-action" onclick="doLogout()">Sign out</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-label">COLOUR VISION</div>
+          <div class="settings-note">
+            Class colours are picked to stay distinguishable. If they look
+            similar to you, choose the closest match below.
+          </div>
+          <div id="cbOptions"></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-label">ABOUT</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7;">
+            Quick Notes <span id="settingsVersion"></span><br>
+            Support: hello@quicknotesai.com
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggest a feature -->
+    <div id="suggestWrap" style="text-align:center;">
+      <div id="suggestBox" style="display:none;position:fixed;top:66px;left:50%;
+        transform:translateX(-50%);z-index:400;width:calc(100% - 40px);max-width:520px;
+        box-shadow:0 12px 40px rgba(0,0,0,0.22);
+        background:var(--card);border:1px solid var(--border);border-radius:16px;
+        padding:18px 20px;text-align:left;">
+        <div style="font-family:'DM Serif Display',serif;font-size:19px;color:var(--text);
+          margin-bottom:5px;">What would make this better?</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:13px;line-height:1.6;">
+          Missing something, or found something annoying? This goes straight to
+          the development team.
+        </div>
+        <textarea id="suggestText" maxlength="4000" placeholder="Type your idea..."
+          style="width:100%;min-height:110px;background:transparent;border:1px solid var(--border);
+                 border-radius:11px;padding:12px 14px;font-family:'DM Sans',sans-serif;
+                 font-size:14px;color:var(--text);resize:vertical;outline:none;
+                 line-height:1.6;box-sizing:border-box;"></textarea>
+        <div style="display:flex;gap:10px;margin-top:12px;align-items:center;">
+          <button onclick="closeSuggest()"
+            style="padding:9px 18px;background:transparent;border:1px solid var(--border);
+                   border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;
+                   color:var(--muted);cursor:pointer;">Cancel</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" id="suggestSend" onclick="sendSuggest()"
+            style="padding:9px 24px;">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cram: lecture selection -->
+    <div class="cram-screen" id="cramScreen">
+      <div class="cram-inner">
+        <div class="cram-head">
+          <button class="results-back" onclick="closeCram()">← Back</button>
+          <div class="cram-title">Cram session</div>
+        </div>
+        <div class="cram-filters" id="cramFilters"></div>
+        <div class="cram-sub" id="cramSub">Pick the lectures you want to study</div>
+
+        <div id="cramList"></div>
+
+        <div class="cram-bar">
+          <button class="time-opt" onclick="selectAllCram(true)">Select all</button>
+          <button class="time-opt" onclick="selectAllCram(false)">Clear</button>
+          <div style="flex:1"></div>
+          <span style="font-size:13px;color:var(--muted);">Time:</span>
+          <button class="time-opt on" data-min="15" onclick="setCramTime(15,this)">15 min</button>
+          <button class="time-opt"    data-min="30" onclick="setCramTime(30,this)">30 min</button>
+          <button class="time-opt"    data-min="45" onclick="setCramTime(45,this)">45 min</button>
+          <button class="btn btn-primary" id="cramStartBtn" onclick="startCram()"
+            style="padding:11px 26px;">Start</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cram: running session -->
+    <div class="cram-screen" id="cramSession">
+      <div class="cram-inner" style="max-width:780px;">
+        <div class="cram-head">
+          <button class="results-back" onclick="quitCram()">← End</button>
+          <div class="cram-title" id="cramProgress">Cram</div>
+          <div id="cramTimer" style="font-size:20px;font-weight:600;color:var(--muted);
+            font-variant-numeric:tabular-nums;"></div>
+        </div>
+        <div class="cram-track"><div class="cram-track-fill" id="cramTrackFill"></div></div>
+        <div id="cramBody" style="margin-top:24px;"></div>
+      </div>
+    </div>
+
     <!-- History -->
     <div class="history-section" id="historySection">
-      <div class="history-label">RECORDED CLASSES</div>
+      <div style="display:flex;align-items:center;margin-bottom:10px;">
+        <div class="history-label" style="flex:1;margin-bottom:0;">RECORDED CLASSES</div>
+        <button onclick="openCram()" title="Study several lectures at once"
+          style="padding:7px 18px;background:var(--blue);color:#fff;border:none;border-radius:11px;
+                 font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">
+          Cram
+        </button>
+      </div>
       <div id="historyList"></div>
     </div>
 
@@ -740,7 +1302,7 @@
 
     <div class="tab-content active" id="tab-notes"></div>
     <div class="tab-content" id="tab-flashcards">
-      <textarea id="flashcardsEdit" style="width:100%;min-height:280px;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.8;color:var(--text-sub);resize:vertical;"></textarea>
+      <textarea id="flashcardsEdit" onblur="saveFlashcards(this.value)" style="width:100%;min-height:280px;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.8;color:var(--text-sub);resize:vertical;"></textarea>
     </div>
     <div class="tab-content" id="tab-summary"></div>
     <div class="tab-content" id="tab-transcript"></div>
@@ -751,8 +1313,16 @@
         <div style="font-size:15px;color:var(--text-sub);margin-bottom:20px;line-height:1.6;">AI will generate a custom practice test from your lecture.<br>Questions include multiple choice, true/false, and open-ended.</div>
         <button onclick="startPracticeTest()" style="padding:14px 40px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Generate Practice Test</button>
       </div>
-      <div id="testLoading" style="display:none;text-align:center;padding:32px 0;">
-        <div style="font-size:14px;color:var(--muted);">Generating your practice test...</div>
+      <div id="testLoading" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text);margin-bottom:8px;">
+          Getting your test ready
+        </div>
+        <div class="qn-dots" style="color:var(--blue);justify-content:center;margin:14px 0 24px;">
+          <span></span><span></span><span></span>
+        </div>
+        <div id="studyTip" style="max-width:440px;margin:0 auto;padding:16px 20px;
+          background:var(--blue-light);border-radius:14px;font-size:14px;
+          color:var(--text);line-height:1.65;text-align:left;"></div>
       </div>
       <div id="testQuestions" style="display:none;"></div>
       <div id="testResults" style="display:none;"></div>
@@ -890,10 +1460,773 @@
     } catch (e) { /* ignore */ }
   });
 
+  // Write flashcard edits back to disk so they survive a reload
+  async function saveFlashcards(text) {
+    const idx = window._currentResultsIndex;
+    if (idx === undefined || idx === null || idx < 0) return;
+    try {
+      const res  = await fetch(`/api/lecture/${idx}/flashcards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flashcards: text })
+      });
+      const data = await res.json();
+      if (data.error) { flashSaved('Could not save: ' + data.error, true); }
+      else            { flashSaved('Saved'); }
+    } catch (e) {
+      flashSaved('Could not save', true);
+    }
+  }
+
+  // Small confirmation so edits don't feel like they vanished
+  function flashSaved(msg, isError) {
+    let el = document.getElementById('saveToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'saveToast';
+      el.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);' +
+        'padding:9px 18px;border-radius:20px;font-family:\'DM Sans\',sans-serif;font-size:13px;' +
+        'color:#fff;z-index:900;opacity:0;transition:opacity 0.25s;pointer-events:none;';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.background = isError ? '#A32D2D' : '#1D9E75';
+    el.style.opacity = '1';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+  }
+
+  // ── Classes ─────────────────────────────────────────────────
+  let myClasses = [];
+
+  async function loadClasses() {
+    try {
+      const res = await fetch('/api/classes');
+      myClasses = await res.json();
+    } catch (e) { myClasses = []; }
+    applyPalette();
+    renderClasses();
+  }
+
+  function classById(id) {
+    return myClasses.find(c => c.id === id) || null;
+  }
+
+  function renderClasses() {
+    const list = document.getElementById('classesList');
+    if (!list) return;
+
+    const counts = {};
+    (window._history || []).forEach(e => {
+      if (e.class_id) counts[e.class_id] = (counts[e.class_id] || 0) + 1;
+    });
+
+    if (!myClasses.length) {
+      list.innerHTML = '<div class="class-empty">No classes yet. Tap + to add one.</div>';
+      return;
+    }
+
+    list.innerHTML = myClasses.map(c => `
+      <div class="class-row" onclick="renameClass('${c.id}')">
+        <span class="class-dot" style="background:${c.displayColor || c.color}"></span>
+        <span class="class-name">${escapeHtml(c.name)}</span>
+        <span class="class-count">${counts[c.id] || 0}</span>
+      </div>`).join('');
+  }
+
+  function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t || '';
+    return d.innerHTML;
+  }
+
+  function startAddClass() {
+    const list = document.getElementById('classesList');
+    if (!list || document.getElementById('newClassInput')) return;
+
+    const row = document.createElement('div');
+    row.className = 'class-row';
+    row.innerHTML = `<span class="class-dot" style="background:rgba(255,255,255,0.35)"></span>
+      <input class="class-input" id="newClassInput" placeholder="Class name" maxlength="40">`;
+    list.appendChild(row);
+
+    const input = document.getElementById('newClassInput');
+    input.focus();
+
+    let done = false;
+    const commit = async () => {
+      if (done) return;
+      done = true;
+      await createClass(input.value);
+    };
+
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { commit(); }
+      if (ev.key === 'Escape') { done = true; renderClasses(); }
+    });
+    // Clicking away saves what was typed instead of throwing it out
+    input.addEventListener('blur', commit);
+  }
+
+  async function createClass(name) {
+    name = (name || '').trim();
+    if (!name) { renderClasses(); return; }
+    await fetch('/api/classes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    await loadClasses();
+    loadHistory();
+  }
+
+  async function renameClass(id) {
+    const c = classById(id);
+    if (!c) return;
+    const name = prompt('Rename class', c.name);
+    if (name === null || !name.trim()) return;
+    await fetch('/api/classes/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() })
+    });
+    await loadClasses();
+    loadHistory();
+  }
+
+  // Chip menu for assigning a lecture to a class
+  function openChipMenu(ev, index) {
+    ev.stopPropagation();
+    document.querySelectorAll('.chip-menu').forEach(m => m.remove());
+
+    const menu = document.createElement('div');
+    menu.className = 'chip-menu';
+    menu.innerHTML = myClasses.map(c => `
+      <button onclick="assignClass(${index}, '${c.id}')">
+        <span class="class-dot" style="background:${c.displayColor || c.color}"></span>${escapeHtml(c.name)}
+      </button>`).join('')
+      + `<button onclick="assignClass(${index}, null)">
+           <span class="class-dot" style="background:var(--border)"></span>No class
+         </button>`;
+
+    const r = ev.currentTarget.getBoundingClientRect();
+    menu.style.top  = (r.bottom + window.scrollY + 6) + 'px';
+    menu.style.left = (r.left + window.scrollX) + 'px';
+    document.body.appendChild(menu);
+
+    setTimeout(() => {
+      document.addEventListener('click', function close() {
+        menu.remove();
+        document.removeEventListener('click', close);
+      });
+    }, 0);
+  }
+
+  async function assignClass(index, classId) {
+    await fetch(`/api/lecture/${index}/class`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ class_id: classId })
+    });
+    await loadHistory();
+    renderClasses();
+  }
+
+  // Shown while a test generates. Each one is something the learning
+  // research actually supports, not filler.
+  const STUDY_TIPS = [
+    "Testing yourself beats re-reading. Pulling an answer out of memory is what makes it stick — recognising it on a page doesn't.",
+    "Spacing beats cramming. Reviewing this material once more tomorrow will do more than doubling your time today.",
+    "If an answer comes instantly, you know it. If you had to reconstruct it, mark it as shaky — that gap is where most exam mistakes live.",
+    "Mixing topics feels harder than studying one at a time, and that's the point. The extra effort is what builds durable recall.",
+    "Studying right before sleep helps. Your brain consolidates what you learned while you're out.",
+    "Feeling familiar with material isn't the same as knowing it. Most students overestimate what they've learned — testing is how you find out.",
+    "Getting something wrong and then seeing the answer beats never being wrong at all. The error makes the correction stick.",
+    "Short focused sessions beat long unfocused ones. Attention fades faster than motivation does."
+  ];
+
+  function showStudyTip() {
+    const el = document.getElementById('studyTip');
+    if (el) el.textContent = STUDY_TIPS[Math.floor(Math.random() * STUDY_TIPS.length)];
+  }
+
+  // ── Suggest a feature ──────────────────────────────────────
+  function openSuggest() {
+    document.getElementById('suggestBtn').style.visibility = 'hidden';
+    document.getElementById('suggestBox').style.display = 'block';
+    document.getElementById('suggestText').focus();
+  }
+
+  function closeSuggest() {
+    document.getElementById('suggestBox').style.display = 'none';
+    document.getElementById('suggestBtn').style.visibility = 'visible';
+    document.getElementById('suggestText').value = '';
+  }
+
+  async function sendSuggest() {
+    const text = document.getElementById('suggestText').value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('suggestSend');
+    btn.disabled = true;
+    btn.innerHTML = "<span class='qn-dots'><span></span><span></span><span></span></span>";
+
+    try {
+      const res  = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+
+      btn.disabled = false;
+      btn.textContent = 'Send';
+
+      if (data.error) { flashSaved(data.error, true); return; }
+
+      closeSuggest();
+      flashSaved('Thanks — got it');
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+      flashSaved('Could not send right now', true);
+    }
+  }
+
+  // ── Settings ────────────────────────────────────────────────
+  //
+  // Class colours are the one place colour carries meaning, so each
+  // palette below avoids the pairs that collapse under that form of
+  // colour blindness. Deuteranopia and protanopia confuse red/green, so
+  // those palettes lean on blue-vs-orange-vs-yellow, which stays
+  // separable. Tritanopia confuses blue/yellow, so that one leans on
+  // red-vs-teal. The mono palette drops hue entirely and uses lightness.
+  const CB_PALETTES = {
+    none: {
+      label: 'Standard',
+      colors: ['#4C72D9', '#D9822B', '#2E9E7C', '#9B5DE5', '#C1476B', '#5BA3C7']
+    },
+    deuteranopia: {
+      label: 'Red-green (deuteranopia)',
+      colors: ['#1F6FD0', '#E69F00', '#F0E442', '#56B4E9', '#8B5A2B', '#0A2F5C']
+    },
+    protanopia: {
+      label: 'Red-green (protanopia)',
+      colors: ['#0072B2', '#E69F00', '#F0E442', '#7BB8E8', '#5C4033', '#00344D']
+    },
+    tritanopia: {
+      label: 'Blue-yellow (tritanopia)',
+      colors: ['#C0392B', '#1ABC9C', '#8E44AD', '#E67E22', '#16A085', '#6D4C41']
+    },
+    mono: {
+      label: 'No colour (use shades)',
+      colors: ['#1A1A1A', '#4D4D4D', '#7A7A7A', '#A6A6A6', '#C9C9C9', '#E8E8E8']
+    }
+  };
+
+  let cbMode = 'none';
+  try { cbMode = localStorage.getItem('qn-cb') || 'none'; } catch (e) {}
+
+  function paletteColor(i) {
+    const p = CB_PALETTES[cbMode] || CB_PALETTES.none;
+    return p.colors[i % p.colors.length];
+  }
+
+  // Remaps every class to its slot in the chosen palette. Slot is based
+  // on creation order, so a class keeps its identity across modes.
+  function applyPalette() {
+    myClasses.forEach((c, i) => { c.displayColor = paletteColor(i); });
+  }
+
+  function openSettings() {
+    document.getElementById('settingsEmail').textContent =
+      document.getElementById('accountEmail').textContent || 'Not signed in';
+    const v = document.getElementById('versionLabel');
+    document.getElementById('settingsVersion').textContent = v ? v.textContent : '';
+    renderCbOptions();
+    document.getElementById('settingsOverlay').classList.add('visible');
+  }
+
+  function closeSettings(ev) {
+    if (ev && ev.target && ev.target.id !== 'settingsOverlay'
+        && ev.type === 'click' && ev.target.closest('.settings-sheet')) return;
+    document.getElementById('settingsOverlay').classList.remove('visible');
+  }
+
+  function renderCbOptions() {
+    const box = document.getElementById('cbOptions');
+    box.innerHTML = Object.keys(CB_PALETTES).map(key => {
+      const p = CB_PALETTES[key];
+      return `<button class="cb-opt ${cbMode === key ? 'on' : ''}" onclick="setCbMode('${key}')">
+        <span>${p.label}</span>
+        <span class="cb-swatches">${p.colors.map(c =>
+          `<span style="background:${c}"></span>`).join('')}</span>
+      </button>`;
+    }).join('');
+  }
+
+  function setCbMode(mode) {
+    cbMode = mode;
+    try { localStorage.setItem('qn-cb', mode); } catch (e) {}
+    applyPalette();
+    renderCbOptions();
+    renderClasses();
+    loadHistory();
+  }
+
+  // ── Cram: lecture selection ────────────────────────────────
+  let cramSelected = new Set();
+  let cramMinutes  = 15;
+
+  let cramClass = null;   // class id, or null for "all classes"
+  let cramRange = 0;      // weeks back; 0 = all time
+
+  function openCram() {
+    const hist = window._history || [];
+    if (!hist.length) { alert('Record a lecture first.'); return; }
+
+    cramClass = null;
+    cramRange = 0;
+    applyCramFilter();
+    renderCramFilters();
+    document.getElementById('cramScreen').classList.add('visible');
+  }
+
+  function closeCram() {
+    document.getElementById('cramScreen').classList.remove('visible');
+  }
+
+  // Filter buttons: one per class, plus a date range. The student says
+  // what they want instead of the app guessing.
+  function renderCramFilters() {
+    const row = document.getElementById('cramFilters');
+    if (!row) return;
+
+    const classBtns = myClasses.map(c => `
+      <button class="time-opt ${cramClass === c.id ? 'on' : ''}"
+        onclick="setCramClass('${c.id}')">
+        <span class="class-dot" style="background:${c.displayColor || c.color};display:inline-block;
+          margin-right:6px;vertical-align:-1px;"></span>${escapeHtml(c.name)}
+      </button>`).join('');
+
+    row.innerHTML = `
+      <button class="time-opt ${cramClass === null ? 'on' : ''}"
+        onclick="setCramClass(null)">All classes</button>
+      ${classBtns}
+      <div style="flex-basis:100%;height:2px"></div>
+      <button class="time-opt ${cramRange === 4 ? 'on' : ''}" onclick="setCramRange(4)">Past 4 weeks</button>
+      <button class="time-opt ${cramRange === 8 ? 'on' : ''}" onclick="setCramRange(8)">Past 8 weeks</button>
+      <button class="time-opt ${cramRange === 0 ? 'on' : ''}" onclick="setCramRange(0)">All time</button>`;
+  }
+
+  function setCramClass(id) {
+    cramClass = id;
+    applyCramFilter();
+    renderCramFilters();
+  }
+
+  function setCramRange(weeks) {
+    cramRange = weeks;
+    applyCramFilter();
+    renderCramFilters();
+  }
+
+  // Selects everything matching the current filters. The checkboxes stay
+  // editable afterwards, so the filter is a starting point not a lock.
+  function applyCramFilter() {
+    const hist = window._history || [];
+    cramSelected = new Set();
+
+    let cutoff = null;
+    if (cramRange > 0) {
+      cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - cramRange * 7);
+    }
+
+    hist.forEach((e, i) => {
+      if (cramClass && e.class_id !== cramClass) return;
+      if (cutoff) {
+        const when = e.started_at ? new Date(e.started_at) : null;
+        if (!when || when < cutoff) return;
+      }
+      cramSelected.add(i);
+    });
+
+    renderCramList();
+  }
+
+  function renderCramList() {
+    const hist = window._history || [];
+    const list = document.getElementById('cramList');
+
+    list.innerHTML = [...hist].map((e, i) => ({ e, i })).reverse().map(({ e, i }) => {
+      const cls  = e.class_id ? (myClasses.find(c => c.id === e.class_id) || null) : null;
+      const ccol = cls ? (cls.displayColor || cls.color) : null;
+      const chip = cls
+        ? `<span class="lecture-chip" style="background:${ccol}22;color:${ccol}">
+             <span class="class-dot" style="background:${ccol}"></span>${escapeHtml(cls.name)}
+           </span>` : '';
+      const time = e.started_at
+        ? new Date(e.started_at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})
+        : '';
+
+      return `
+        <div class="cram-card ${cramSelected.has(i) ? 'selected' : ''}" onclick="toggleCram(${i})">
+          <div class="cram-check">
+            <svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="history-name">${escapeHtml(e.name)}</div>
+            <div class="history-meta">${e.date}${time ? ' &nbsp;·&nbsp; ' + time : ''} &nbsp;·&nbsp; ${e.duration} &nbsp; ${chip}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const n = cramSelected.size;
+    document.getElementById('cramSub').textContent =
+      n ? `${n} lecture${n === 1 ? '' : 's'} selected` : 'Pick the lectures you want to study';
+  }
+
+  function toggleCram(i) {
+    if (cramSelected.has(i)) cramSelected.delete(i); else cramSelected.add(i);
+    renderCramList();
+  }
+
+  function selectAllCram(on) {
+    cramSelected = new Set();
+    if (on) (window._history || []).forEach((e, i) => cramSelected.add(i));
+    renderCramList();
+  }
+
+  function setCramTime(min, btn) {
+    cramMinutes = min;
+    document.querySelectorAll('.time-opt[data-min]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+
+  // ── Cram: the session ──────────────────────────────────────
+  let cramPool     = [];      // {q, seen, successes, firstTry}
+  let cramQueue    = [];      // indices into cramPool, in play order
+  let cramPos      = 0;       // how many questions shown so far
+  let cramEndAt    = 0;
+  let cramTick     = null;
+  let cramAnswered = false;
+  let cramShownAt  = 0;
+  let cramLoading  = false;   // background generation still running
+
+  async function startCram() {
+    const picked = [...cramSelected];
+    if (!picked.length) { alert('Select at least one lecture.'); return; }
+
+    const btn = document.getElementById('cramStartBtn');
+    btn.disabled = true;
+    btn.innerHTML = "Starting <span class='qn-dots'><span></span><span></span><span></span></span>";
+
+    const body = {
+      lectures: picked,
+      class_id: cramClass,
+      minutes:  cramMinutes
+    };
+
+    try {
+      // Ask for a short opening batch first. It comes back in a few
+      // seconds, so the session starts almost immediately instead of
+      // waiting on the whole set.
+      const res  = await fetch('/api/cram/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, quick: true })
+      });
+      const data = await res.json();
+
+      btn.disabled = false;
+      btn.textContent = 'Start';
+
+      if (data.error) {
+        if (data.reason === 'offline')      alert('No internet connection. Try again once you are back online.');
+        else if (data.reason === 'access')  alert('Your subscription or trial has ended.');
+        else                                alert('Could not build the session: ' + data.error);
+        return;
+      }
+
+      const qs = data.questions || [];
+      if (!qs.length) { alert('These lectures do not have enough flashcards yet.'); return; }
+
+      cramPool  = qs.map(q => ({ q, seen: 0, successes: 0, firstTry: null }));
+      cramQueue = shuffleInterleaved(cramPool);
+      cramPos   = 0;
+      cramEndAt = Date.now() + cramMinutes * 60 * 1000;
+
+      closeCram();
+      document.getElementById('cramSession').classList.add('visible');
+      startCramTimer();
+      nextCramQuestion();
+
+      // The rest generates while they work on the opening questions
+      cramLoading = true;
+      fetchRestOfCram(body);
+
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Start';
+      alert('Could not start: ' + e.message);
+    }
+  }
+
+  // Pull the full question set in the background and fold anything new
+  // into the queue ahead of the student.
+  async function fetchRestOfCram(body) {
+    try {
+      const res  = await fetch('/api/cram/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.error || !data.questions) return;
+
+      const seen = new Set(cramPool.map(c => c.q.question));
+      const fresh = data.questions.filter(q => !seen.has(q.question));
+      if (!fresh.length) return;
+
+      const startAt = cramPool.length;
+      fresh.forEach(q => cramPool.push({ q, seen: 0, successes: 0, firstTry: null }));
+
+      // Drop them in shuffled, after whatever is already queued up next
+      const added = [];
+      for (let i = startAt; i < cramPool.length; i++) added.push(i);
+      for (let i = added.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [added[i], added[j]] = [added[j], added[i]];
+      }
+      cramQueue.splice(cramPos + 2, 0, ...added);
+    } catch (e) { /* the opening batch is enough to keep going */ }
+    finally {
+      cramLoading = false;
+      // If they caught up with generation, resume where they stopped
+      const btn = document.getElementById('cramWaitBtn');
+      if (btn) { cramPos++; nextCramQuestion(); }
+    }
+  }
+
+  // Shuffle, then push apart questions from the same lecture. Mixing
+  // topics forces the brain to reload the right retrieval strategy
+  // instead of coasting on the current chapter.
+  function shuffleInterleaved(pool) {
+    const order = pool.map((_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const out = [];
+    const held = [];
+    for (const idx of order) {
+      const lec  = pool[idx].q.lecture;
+      const last = out.length ? pool[out[out.length - 1]].q.lecture : null;
+      if (lec === last && held.length === 0) { held.push(idx); continue; }
+      out.push(idx);
+      if (held.length) { out.push(held.pop()); }
+    }
+    while (held.length) out.push(held.pop());
+    return out;
+  }
+
+  function startCramTimer() {
+    clearInterval(cramTick);
+    cramTick = setInterval(() => {
+      const left = Math.max(0, cramEndAt - Date.now());
+      const m = Math.floor(left / 60000);
+      const sec = Math.floor((left % 60000) / 1000);
+      document.getElementById('cramTimer').textContent =
+        `${m}:${String(sec).padStart(2, '0')}`;
+      // Time is up, but never cut someone off mid-question
+      if (left <= 0) { clearInterval(cramTick); }
+    }, 500);
+  }
+
+  function cramTimeUp() { return Date.now() >= cramEndAt; }
+
+  function nextCramQuestion() {
+    const mastered = cramPool.filter(c => c.successes >= 1).length;
+    document.getElementById('cramProgress').textContent =
+      mastered ? `${mastered} mastered` : 'Cram';
+    // Progress tracks time, not question count — the student finishes
+    // when the clock does, and a big number up front is discouraging.
+    const spent = 1 - Math.max(0, cramEndAt - Date.now()) / (cramMinutes * 60000);
+    document.getElementById('cramTrackFill').style.width =
+      Math.min(100, Math.round(spent * 100)) + '%';
+
+    if (cramTimeUp() && cramPos > 0) {
+      return showCramSummary();
+    }
+
+    // Caught up with background generation — hold, don't end the session
+    if (cramPos >= cramQueue.length) {
+      if (cramLoading) {
+        document.getElementById('cramBody').innerHTML =
+          `<button class="btn btn-primary" id="cramWaitBtn" disabled
+             style="width:100%;padding:16px;opacity:0.8;">
+             Loading more questions
+             <span class="qn-dots" style="margin-left:6px;">
+               <span></span><span></span><span></span></span>
+           </button>`;
+        return;
+      }
+      return showCramSummary();
+    }
+
+    const card = cramPool[cramQueue[cramPos]];
+    const q    = card.q;
+    cramAnswered = false;
+    cramShownAt  = Date.now();
+
+    const body = document.getElementById('cramBody');
+    let html = `<div class="cram-q">${escapeHtml(q.question)}</div>`;
+
+    if (q.type === 'recall') {
+      // Flashcard-style: recall first, then reveal and self-rate.
+      html += `<button class="btn btn-primary" id="revealBtn" onclick="revealCram()"
+                 style="width:100%;padding:15px;">Show answer</button>`;
+    } else if (q.type === 'tf') {
+      html += `<button class="cram-choice" onclick="answerCram(1)">True</button>
+               <button class="cram-choice" onclick="answerCram(0)">False</button>`;
+    } else {
+      html += (q.choices || []).map((c, i) =>
+        `<button class="cram-choice" onclick="answerCram(${i})">
+           ${String.fromCharCode(65 + i)}. ${escapeHtml(c)}
+         </button>`).join('');
+    }
+
+    body.innerHTML = html + '<div id="cramFb"></div>';
+  }
+
+  function revealCram() {
+    const card = cramPool[cramQueue[cramPos]];
+    const btn  = document.getElementById('revealBtn');
+    if (btn) btn.remove();
+
+    const body = document.getElementById('cramBody');
+    const ans  = document.createElement('div');
+    ans.className = 'cram-feedback';
+    ans.style.background = 'var(--blue-light)';
+    ans.style.color = 'var(--text)';
+    ans.textContent = card.q.answer || '';
+    body.insertBefore(ans, document.getElementById('cramFb'));
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;margin-top:14px;';
+    row.innerHTML = `
+      <button class="cram-choice" style="margin:0;text-align:center;"
+        onclick="answerCram(false)">Didn't know it</button>
+      <button class="cram-choice" style="margin:0;text-align:center;"
+        onclick="answerCram(true)">Got it</button>`;
+    body.appendChild(row);
+  }
+
+  function answerCram(choice) {
+    if (cramAnswered) return;
+    cramAnswered = true;
+
+    const card = cramPool[cramQueue[cramPos]];
+    const q    = card.q;
+    const correct = (q.type === 'recall')
+      ? !!choice
+      : (q.type === 'tf')
+        ? (!!choice === !!q.correct_answer)
+        : (choice === q.correct_index);
+
+    // Score reflects knowledge: only the first encounter counts
+    if (card.firstTry === null) card.firstTry = correct;
+    card.seen++;
+    if (correct) card.successes++;
+    else         card.successes = 0;
+
+    if (q.type === 'recall') {
+      document.querySelectorAll('.cram-choice').forEach(b => { b.disabled = true; });
+    } else document.querySelectorAll('.cram-choice').forEach((b, i) => {
+      b.disabled = true;
+      const isRight = (q.type === 'tf') ? (i === (q.correct_answer ? 0 : 1)) : (i === q.correct_index);
+      if (isRight)                { b.style.borderColor = '#1D9E75'; b.style.background = '#EAF3DE'; b.style.color = '#3B6D11'; }
+      else if (i === (q.type === 'tf' ? (choice ? 0 : 1) : choice)) {
+        b.style.borderColor = '#D85A30'; b.style.background = '#FCEBEB'; b.style.color = '#A32D2D';
+      }
+    });
+
+    const fb = document.getElementById('cramFb');
+    fb.className = 'cram-feedback';
+    fb.style.background = correct ? '#EAF3DE' : '#FCEBEB';
+    fb.style.color      = correct ? '#3B6D11' : '#A32D2D';
+    fb.textContent = q.type === 'recall'
+      ? (correct ? 'Good — that one is sticking.' : "No problem, you'll see it again.")
+      : correct
+        ? (q.explanation || 'Correct.')
+        : (q.explanation || 'Not quite — review this one.');
+
+    // A missed question comes back, but only after other cards have
+    // intervened. Repeating it immediately would test working memory,
+    // not recall.
+    if (!correct) {
+      const gap = [5, 12, 25][Math.min(card.seen - 1, 2)];
+      const at  = Math.min(cramPos + gap, cramQueue.length);
+      cramQueue.splice(at, 0, cramQueue[cramPos]);
+    }
+
+    const next = document.createElement('button');
+    next.className = 'btn btn-primary';
+    next.style.cssText = 'width:100%;margin-top:14px;padding:14px;';
+    next.textContent = cramTimeUp() ? 'See results' : 'Next';
+    next.onclick = () => { cramPos++; nextCramQuestion(); };
+    document.getElementById('cramBody').appendChild(next);
+    next.focus();
+  }
+
+  function showCramSummary() {
+    clearInterval(cramTick);
+    const answered = cramPool.filter(c => c.firstTry !== null);
+    const right    = answered.filter(c => c.firstTry).length;
+    const pct      = answered.length ? Math.round((right / answered.length) * 100) : 0;
+    const colour   = pct >= 80 ? '#1D9E75' : pct >= 60 ? '#854F0B' : '#A32D2D';
+
+    const weak = cramPool.filter(c => c.firstTry === false)
+                         .map(c => c.q.question).slice(0, 8);
+
+    document.getElementById('cramTimer').textContent = '';
+    document.getElementById('cramProgress').textContent = 'Session complete';
+    document.getElementById('cramBody').innerHTML = `
+      <div style="text-align:center;padding:18px 0 8px;">
+        <div style="font-size:52px;font-weight:700;color:${colour};">${pct}%</div>
+        <div style="font-size:16px;color:var(--text);margin-bottom:4px;">
+          ${right} of ${answered.length} right first time
+        </div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:26px;">
+          Nice work — that's a real dent in the material.
+        </div>
+      </div>
+      ${weak.length ? `
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;color:var(--muted);
+          margin-bottom:10px;">WORTH ANOTHER LOOK</div>
+        ${weak.map(w => `<div style="padding:11px 16px;background:var(--card);
+          border:1px solid var(--border);border-radius:12px;margin-bottom:8px;
+          font-size:14px;color:var(--text-sub);">${escapeHtml(w)}</div>`).join('')}` : ''}
+      <div style="margin-top:22px;padding:15px 18px;background:var(--blue-light);
+        border-radius:13px;font-size:14px;color:var(--text);line-height:1.6;">
+        Come back to these once more before the exam — ideally after a night's
+        sleep. A single spaced review does more for recall than a longer session now.
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px;padding:14px;"
+        onclick="quitCram()">Done</button>`;
+  }
+
+  function quitCram() {
+    clearInterval(cramTick);
+    document.getElementById('cramSession').classList.remove('visible');
+  }
+
   // ── History ─────────────────────────────────────────────────
   async function loadHistory() {
     const res  = await fetch('/api/history');
     const data = await res.json();
+    window._history = data;
     const list = document.getElementById('historyList');
 
     if (!data.length) {
@@ -923,11 +2256,21 @@
           </div>`;
       }
 
+      const cls  = e.class_id ? (myClasses.find(c => c.id === e.class_id) || null) : null;
+      const col  = cls ? (cls.displayColor || cls.color) : null;
+      const chip = cls
+        ? `<span class="lecture-chip" style="background:${col}22;color:${col}"
+             onclick="openChipMenu(event, ${realIndex})">
+             <span class="class-dot" style="background:${col}"></span>${escapeHtml(cls.name)}
+           </span>`
+        : `<span class="lecture-chip unassigned"
+             onclick="openChipMenu(event, ${realIndex})">+ Add class</span>`;
+
       return `
         <div class="history-card" onclick="openHistory(${realIndex})">
           <div class="history-info">
             <div class="history-name">${e.name}</div>
-            <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration}</div>
+            <div class="history-meta">${e.date} &nbsp;·&nbsp; ${e.duration} &nbsp; ${chip}</div>
           </div>
           <span class="history-arrow">›</span>
         </div>`;
@@ -970,7 +2313,8 @@
     }
   }
 
-  loadHistory();
+  // Classes first so lecture chips render with their names
+  loadClasses().then(loadHistory);
 
   // ── Mic press ────────────────────────────────────────────────
   async function onMicPress() {
@@ -1235,6 +2579,18 @@
     document.getElementById('tab-' + name).classList.add('active');
     document.getElementById('studyBtn').style.display        = (name === 'flashcards') ? 'block' : 'none';
     document.getElementById('textbookSection').style.display = (name === 'notes' || name === 'transcript') ? 'block' : 'none';
+
+    // Opening the test tab starts it — no extra button to press. A saved
+    // test loads instantly; a new one shows the loading message.
+    if (name === 'test' && typeof practiceQuestions !== 'undefined'
+        && practiceQuestions.length === 0) {
+      const notStarted = document.getElementById('testNotStarted');
+      const loading    = document.getElementById('testLoading');
+      const results    = document.getElementById('testResults');
+      const busy = (loading && loading.style.display === 'block');
+      const done = (results && results.style.display === 'block');
+      if (!busy && !done) startPracticeTest();
+    }
   }
 
   // ── Reset card to home state ─────────────────────────────────
@@ -1448,6 +2804,7 @@
     // Sync back to textarea
     const updated = studyCards.map(c => `Q: ${c.q}\nA: ${c.a}`).join('\n\n');
     document.getElementById('flashcardsEdit').value = updated;
+    saveFlashcards(updated);
   }
 
   function cancelCardEdit() {
