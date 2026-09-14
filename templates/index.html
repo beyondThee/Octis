@@ -87,7 +87,7 @@
     padding: 0;
   }
   .theme-btn:hover { background: var(--blue-light); transform: rotate(25deg); }
-  .theme-btn svg { width: 18px; height: 18px; transition: fill var(--transition); }
+  .theme-btn svg { width: 18px; height: 18px; fill: var(--text); transition: fill var(--transition); }
   .theme-btn .icon-moon { fill: var(--text); display: block; }
   .theme-btn .icon-sun  { fill: var(--text); display: none; }
   [data-theme="dark"] .theme-btn .icon-moon { display: none; }
@@ -207,6 +207,7 @@
   .card-split {
     display: grid;
     grid-template-columns: 1fr 250px;
+    transition: grid-template-columns 0.35s ease;
     align-items: center;
     position: relative;
     z-index: 2;
@@ -222,6 +223,18 @@
     bottom: 14%;
     width: 1px;
     background: rgba(255,255,255,0.28);
+    transition: opacity 0.25s;
+  }
+
+  /* Recording takes over the whole card — classes fold away and the
+     divider goes with them. */
+  .record-card.recording .card-split { grid-template-columns: 1fr 0px; }
+  .record-card.recording .card-split::after { opacity: 0; }
+  .record-card.recording .classes-panel {
+    opacity: 0;
+    pointer-events: none;
+    padding: 0;
+    overflow: hidden;
   }
 
   .card-main { min-width: 0; }
@@ -242,6 +255,7 @@
     padding: 0 6px 0 26px;
     min-width: 0;
     text-align: left;
+    transition: opacity 0.25s, padding 0.35s;
   }
 
   .classes-head {
@@ -314,6 +328,70 @@
     color: #fff;
   }
   .class-input::placeholder { color: rgba(255,255,255,0.55); }
+
+  /* ── Flashcard list (editable) ───────────────────────────── */
+  .fc-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .fc-item:hover { border-color: var(--blue); }
+
+  .fc-q {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 6px;
+    outline: none;
+  }
+
+  .fc-a {
+    font-size: 14px;
+    color: var(--text-sub);
+    line-height: 1.6;
+    outline: none;
+  }
+
+  .fc-q:focus, .fc-a:focus {
+    background: var(--blue-light);
+    border-radius: 6px;
+    padding: 2px 5px;
+    margin-left: -5px;
+  }
+
+  .fc-q:empty:before, .fc-a:empty:before {
+    content: attr(data-placeholder);
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .fc-del {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .fc-item:hover .fc-del { opacity: 1; }
+  .fc-del:hover { background: #FCEBEB; color: #A32D2D; }
+
+  .fc-count {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
 
   /* ── Settings ────────────────────────────────────────────── */
   .settings-overlay {
@@ -983,6 +1061,13 @@
     overflow: visible;
   }
 
+  /* Flashcards sits above the Study button, so it stays shorter than
+     the other tabs to keep that button on screen without scrolling. */
+  #tab-flashcards {
+    max-height: 54vh;
+    min-height: 240px;
+  }
+
   .tab-content.active { display: block; }
 
   /* ── Scrollbar styling ────────────────────────────────────── */
@@ -1036,7 +1121,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.7</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.8</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -1304,7 +1389,17 @@
 
     <div class="tab-content active" id="tab-notes"></div>
     <div class="tab-content" id="tab-flashcards">
-      <textarea id="flashcardsEdit" onblur="saveFlashcards(this.value)" style="width:100%;min-height:280px;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.8;color:var(--text-sub);resize:vertical;"></textarea>
+      <div id="cardList"></div>
+      <button onclick="addBlankCard()" id="addCardBtn"
+        style="width:100%;padding:14px;margin-top:6px;background:transparent;
+               border:1px dashed var(--border);border-radius:14px;
+               font-family:'DM Sans',sans-serif;font-size:14px;color:var(--muted);
+               cursor:pointer;transition:background 0.15s,color 0.15s;"
+        onmouseover="this.style.background='var(--blue-light)';this.style.color='var(--blue)'"
+        onmouseout="this.style.background='transparent';this.style.color='var(--muted)'">
+        + Add flashcard
+      </button>
+      <textarea id="flashcardsEdit" style="display:none;"></textarea>
     </div>
     <div class="tab-content" id="tab-summary"></div>
     <div class="tab-content" id="tab-transcript"></div>
@@ -1354,7 +1449,8 @@
     <div style="font-size:12px;color:var(--muted);margin-bottom:24px;" id="studyProgress"></div>
 
     <!-- Card container -->
-    <div id="studyCardWrap" style="perspective:1000px;margin-bottom:20px;">
+    <div id="studyCardWrap" style="perspective:1000px;margin-bottom:20px;
+      overflow:hidden;border-radius:20px;">
       <div id="studyCard" style="
         width:100%;min-height:220px;
         position:relative;
@@ -1378,7 +1474,7 @@
         <div id="cardBack" style="
           position:absolute;width:100%;min-height:220px;
           backface-visibility:hidden;-webkit-backface-visibility:hidden;
-          transform:rotateY(180deg);
+          transform:rotateY(180deg) translateZ(1px);
           background:var(--blue);border-radius:20px;
           display:flex;flex-direction:column;align-items:center;justify-content:center;
           padding:32px 28px;text-align:center;
@@ -1391,6 +1487,8 @@
 
     <!-- Flip button (shown before flip) -->
     <div id="flipArea" style="text-align:center;">
+      <div id="shortcutHint" style="text-align:center;font-size:11px;color:var(--muted);
+        margin-bottom:10px;">Space to flip &nbsp;·&nbsp; 1 / 2 / 3 to rate</div>
       <button onclick="flipCard()" id="flipBtn" style="
         padding:14px 40px;background:var(--blue);color:#fff;
         border:none;border-radius:12px;font-family:'DM Sans',sans-serif;
@@ -1408,9 +1506,9 @@
     <!-- Rating buttons (shown after flip) -->
     <div id="ratingArea" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-        <button onclick="rateCard('forgot')" style="padding:14px 8px;background:#FCEBEB;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#A32D2D;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#F7C1C1'" onmouseout="this.style.background='#FCEBEB'">😟 Totally Forgot</button>
-        <button onclick="rateCard('somewhat')" style="padding:14px 8px;background:#FAEEDA;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#854F0B;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#FAC775'" onmouseout="this.style.background='#FAEEDA'">🤔 Somewhat Remember</button>
-        <button onclick="rateCard('remember')" style="padding:14px 8px;background:#EAF3DE;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#3B6D11;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#C0DD97'" onmouseout="this.style.background='#EAF3DE'">✅ Completely Remember</button>
+        <button onclick="rateCard('forgot')" style="padding:14px 8px;background:#FCEBEB;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#A32D2D;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#F7C1C1'" onmouseout="this.style.background='#FCEBEB'">😟 Totally Forgot<br><span style='font-size:11px;opacity:0.6;font-weight:400;'>1</span></button>
+        <button onclick="rateCard('somewhat')" style="padding:14px 8px;background:#FAEEDA;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#854F0B;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#FAC775'" onmouseout="this.style.background='#FAEEDA'">🤔 Somewhat Remember<br><span style='font-size:11px;opacity:0.6;font-weight:400;'>2</span></button>
+        <button onclick="rateCard('remember')" style="padding:14px 8px;background:#EAF3DE;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:#3B6D11;cursor:pointer;transition:transform 0.15s,background 0.2s;" onmouseover="this.style.background='#C0DD97'" onmouseout="this.style.background='#EAF3DE'">✅ Completely Remember<br><span style='font-size:11px;opacity:0.6;font-weight:400;'>3</span></button>
       </div>
     </div>
 
@@ -1461,6 +1559,86 @@
       localStorage.setItem('qn-theme', isDark ? 'dark' : 'light');
     } catch (e) { /* ignore */ }
   });
+
+  // ── Flashcard list ─────────────────────────────────────────
+  // The raw Q:/A: text is still what gets saved, but the student edits
+  // real cards instead of reading a text file.
+  let fcCards = [];
+
+  function renderCardList() {
+    const list = document.getElementById('cardList');
+    if (!list) return;
+
+    if (!fcCards.length) {
+      list.innerHTML = `<div class="fc-count">No flashcards yet — add one below.</div>`;
+      return;
+    }
+
+    list.innerHTML =
+      `<div class="fc-count">${fcCards.length} card${fcCards.length === 1 ? '' : 's'}</div>` +
+      fcCards.map((c, i) => `
+        <div class="fc-item">
+          <button class="fc-del" onclick="deleteCard(${i})" title="Delete card">&times;</button>
+          <div class="fc-q" contenteditable="true" data-placeholder="Question"
+            onblur="updateCard(${i}, 'q', this.innerText)">${escapeHtml(c.q)}</div>
+          <div class="fc-a" contenteditable="true" data-placeholder="Answer"
+            onblur="updateCard(${i}, 'a', this.innerText)">${escapeHtml(c.a)}</div>
+        </div>`).join('');
+  }
+
+  function cardsToText() {
+    return fcCards
+      .filter(c => c.q.trim() || c.a.trim())
+      .map(c => `Q: ${c.q.trim()}\nA: ${c.a.trim()}`)
+      .join('\n\n');
+  }
+
+  function commitCards() {
+    const text = cardsToText();
+    const ta = document.getElementById('flashcardsEdit');
+    if (ta) ta.value = text;     // study mode still parses from here
+    saveFlashcards(text);
+  }
+
+  function updateCard(i, field, value) {
+    if (!fcCards[i]) return;
+    const clean = (value || '').replace(/\s+/g, ' ').trim();
+    if (fcCards[i][field] === clean) return;
+    fcCards[i][field] = clean;
+    commitCards();
+  }
+
+  function deleteCard(i) {
+    const c = fcCards[i];
+    if (!c) return;
+    if ((c.q.trim() || c.a.trim()) && !confirm('Delete this flashcard?')) return;
+    fcCards.splice(i, 1);
+    renderCardList();
+    commitCards();
+  }
+
+  function addBlankCard() {
+    fcCards.push({ q: '', a: '' });
+    renderCardList();
+    // Drop the cursor straight into the new question
+    const items = document.querySelectorAll('#cardList .fc-item .fc-q');
+    const last  = items[items.length - 1];
+    if (last) { last.focus(); last.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
+
+  function loadCardList(text) {
+    fcCards = [];
+    let q = null;
+    (text || '').split('\n').forEach(line => {
+      const t = line.trim();
+      if (t.startsWith('Q:'))      { q = t.slice(2).trim(); }
+      else if (t.startsWith('A:') && q !== null) {
+        fcCards.push({ q: q, a: t.slice(2).trim() });
+        q = null;
+      }
+    });
+    renderCardList();
+  }
 
   // Write flashcard edits back to disk so they survive a reload
   async function saveFlashcards(text) {
@@ -2273,6 +2451,8 @@
     const res  = await fetch('/api/history');
     const data = await res.json();
     window._history = data;
+    // Class counts read from history, so refresh them now it's here
+    if (typeof renderClasses === 'function') renderClasses();
     const list = document.getElementById('historyList');
 
     if (!data.length) {
@@ -2605,7 +2785,8 @@
       `Saved · ${entry.date || ''} · ${entry.duration || ''}`;
 
     document.getElementById('tab-notes').textContent          = results.notes      || 'No notes generated.';
-    document.getElementById('flashcardsEdit').value            = results.flashcards || 'No flashcards generated.';
+    document.getElementById('flashcardsEdit').value            = results.flashcards || '';
+    loadCardList(results.flashcards || '');
     document.getElementById('tab-summary').textContent         = results.summary    || 'No summary generated.';
     document.getElementById('tab-transcript').textContent      = results.transcript || 'No transcript available.';
     document.getElementById('textbookSection').style.display   = 'block';
@@ -2777,18 +2958,54 @@
   // Track which cards have been completely remembered
   let rememberedCards = new Set();
 
+  // Studying 40 cards means 80 clicks without these. Space to flip,
+  // 1/2/3 to rate — hands stay still and you get a rhythm.
+  document.addEventListener('keydown', ev => {
+    const study = document.getElementById('study-screen');
+    if (!study || study.style.display === 'none') return;
+
+    // Not while the finish screen is up
+    const done = document.getElementById('studyDone');
+    if (done && done.style.display !== 'none' && done.style.display) return;
+
+    // Never hijack keys while editing a card
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    const modal = document.getElementById('editModal');
+    if (modal && modal.style.display !== 'none' && modal.style.display) return;
+
+    const flipped = (typeof isFlipped !== 'undefined') && isFlipped;
+
+    if (ev.key === ' ' || ev.key === 'Spacebar') {
+      ev.preventDefault();
+      if (!flipped) flipCard();
+      return;
+    }
+    // Ratings only once the answer is showing, so nobody rates blind
+    if (!flipped) return;
+    if (ev.key === '1') { ev.preventDefault(); rateCard('forgot'); }
+    if (ev.key === '2') { ev.preventDefault(); rateCard('somewhat'); }
+    if (ev.key === '3') { ev.preventDefault(); rateCard('remember'); }
+  });
+
+  // Put a card back into the queue a set number of cards later, rather
+  // than after a number of seconds. Seeing it again immediately would
+  // test working memory, not recall.
+  function requeueCard(idx, gap) {
+    const pos = Math.min(studyIndex + gap, studyQueue.length);
+    studyQueue.splice(pos, 0, idx);
+  }
+
   function rateCard(rating) {
     const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
     const idx = activeQueue[studyIndex];
 
     if (rating === 'forgot') {
       rememberedCards.delete(idx);
-      const t = setTimeout(() => { studyQueue.push(idx); }, 30000);
-      reviewTimers.push(t);
+      requeueCard(idx, 4);
     } else if (rating === 'somewhat') {
       rememberedCards.delete(idx);
-      const t = setTimeout(() => { studyQueue.push(idx); }, 60000);
-      reviewTimers.push(t);
+      requeueCard(idx, 10);
     } else if (rating === 'remember') {
       rememberedCards.add(idx);
     }
@@ -2850,6 +3067,7 @@
     // Sync back to textarea
     const updated = studyCards.map(c => `Q: ${c.q}\nA: ${c.a}`).join('\n\n');
     document.getElementById('flashcardsEdit').value = updated;
+    loadCardList(updated);
     saveFlashcards(updated);
   }
 
@@ -2872,6 +3090,13 @@
     document.getElementById('results-screen').style.display  = 'block';
     document.getElementById('results-screen').classList.add('visible');
     document.getElementById('home-screen').style.display     = 'none';
+
+    // Put the Study button back if the flashcards tab is the active one
+    const fcTab = document.getElementById('tab-flashcards');
+    const btn   = document.getElementById('studyBtn');
+    if (btn && fcTab && fcTab.classList.contains('active')) {
+      btn.style.display = 'block';
+    }
   }
 
   // ── License check on startup ─────────────────────────────────

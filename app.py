@@ -840,7 +840,7 @@ def send_feedback():
         return jsonify({"error": "Give it a moment before sending another"}), 429
 
     email   = current_email() or "unknown"
-    version = "1.2.7"
+    version = "1.2.8"
 
     try:
         resp = requests.post(
