@@ -66,6 +66,12 @@ function scrollIntoView(el) {
   }, 60);
 }
 
+// Sound lives in index.html; guard so this file works without it
+function sndCorrect()  { if (typeof soundCorrect  === "function") soundCorrect(); }
+function sndWrong()    { if (typeof soundWrong    === "function") soundWrong(); }
+function sndComplete() { if (typeof soundComplete === "function") soundComplete(); }
+function sndReset()    { if (typeof resetStreak   === "function") resetStreak(); }
+
 function setLoading(btn) {
   if (!btn) return;
   btn.disabled = true;
@@ -80,6 +86,7 @@ function startPracticeTest() {
     practiceAnswers      = {};
     currentQuestionIndex = 0;
     testCompleted        = false;
+    sndReset();
     document.getElementById("testNotStarted").style.display = "none";
     document.getElementById("testResults").style.display    = "none";
     showQuestion(0);
@@ -187,6 +194,7 @@ function answerMC(idx, choiceIdx) {
   var correct   = choiceIdx === q.correct_index;
 
   practiceAnswers[idx] = { correct: correct, confident: confident, type: "mc" };
+  if (correct) sndCorrect(); else sndWrong();
 
   var btns = document.querySelectorAll("[id^='mc-']");
   for (var i = 0; i < btns.length; i++) {
@@ -227,6 +235,7 @@ function answerTF(idx, answer) {
   var correct   = answer === q.correct_answer;
 
   practiceAnswers[idx] = { correct: correct, confident: confident, type: "tf" };
+  if (correct) sndCorrect(); else sndWrong();
 
   var wrap    = document.getElementById("testQuestions");
   var allBtns = wrap.querySelectorAll("button");
@@ -268,6 +277,7 @@ function submitOpenEnded(idx) {
   .then(function (data) {
     var correct = data.score >= 7;
     practiceAnswers[idx] = { correct: correct, confident: confident, type: "open", score: data.score };
+    if (correct) sndCorrect(); else sndWrong();
 
     if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
 
@@ -303,6 +313,7 @@ function appendNextBtn(wrap) {
 // ── Test Results ───────────────────────────────────────────────
 function showTestResults() {
   testCompleted = true;
+  sndComplete();
   document.getElementById("testQuestions").style.display = "none";
 
   var total = practiceQuestions.length, correct = 0, confident = 0;
@@ -392,6 +403,7 @@ function buildWeakSpotTest() {
   weakSpotIndex       = 0;
   weakSpotAnswers     = {};
   weakSpotsBuiltCycle = studyCycle;
+  sndReset();
 
   var content = document.getElementById("weakspotContent");
   if (!content) return;
@@ -475,6 +487,7 @@ function answerWeakMC(choiceIdx) {
   var confident = isConfident(questionStartTime, q.question, q.choices);
   var correct   = choiceIdx === q.correct_index;
   weakSpotAnswers[weakSpotIndex] = { correct: correct, confident: confident, type: "mc" };
+  if (correct && confident) sndCorrect(); else sndWrong();
 
   var btns = document.querySelectorAll("[id^='wmc-']");
   for (var i = 0; i < btns.length; i++) {
@@ -505,6 +518,7 @@ function answerWeakTF(answer) {
   var confident = isConfident(questionStartTime, q.question, ["True", "False"]);
   var correct   = answer === q.correct_answer;
   weakSpotAnswers[weakSpotIndex] = { correct: correct, confident: confident, type: "tf" };
+  if (correct && confident) sndCorrect(); else sndWrong();
 
   var wrap    = document.getElementById("weakspotContent");
   var allBtns = wrap.querySelectorAll("button");
@@ -544,6 +558,7 @@ function submitWeakOpen() {
   .then(function (data) {
     var correct = data.score >= 7;
     weakSpotAnswers[weakSpotIndex] = { correct: correct, confident: confident, type: "open", score: data.score };
+    if (correct && confident) sndCorrect(); else sndWrong();
 
     if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
 
@@ -576,6 +591,7 @@ function appendWeakNextBtn(wrap) {
 }
 
 function showWeakSpotResults() {
+  sndComplete();
   var content = document.getElementById("weakspotContent");
   if (!content) return;
   content.innerHTML =

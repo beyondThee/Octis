@@ -1121,7 +1121,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.8</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.9</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -1254,6 +1254,15 @@
           <div class="settings-label">ACCOUNT</div>
           <div id="settingsEmail" style="font-size:14px;color:var(--text-sub);margin-bottom:12px;"></div>
           <button class="settings-action" onclick="doLogout()">Sign out</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-label">SOUND</div>
+          <div class="settings-note">
+            A rising chime for each correct answer in tests and cram sessions.
+            Off by default is worth considering if you study in a quiet library.
+          </div>
+          <button class="cb-opt" id="soundToggle" onclick="toggleSound()"></button>
         </div>
 
         <div class="settings-group">
@@ -1900,6 +1909,55 @@
     }
   }
 
+  // ── Sound ───────────────────────────────────────────────────
+  // A correct answer plays the next bell up the scale. After the
+  // ladder runs out the Shepard set takes over, which keeps rising
+  // forever with no audible reset. A miss resets the streak.
+  let soundOn   = true;
+  let qnStreak  = 0;
+  try { soundOn = localStorage.getItem('qn-sound') !== 'off'; } catch (e) {}
+
+  const _sndCache = {};
+  function playSound(name, volume) {
+    if (!soundOn) return;
+    try {
+      let a = _sndCache[name];
+      if (!a) { a = new Audio('/static/sounds/' + name + '.wav'); _sndCache[name] = a; }
+      a.currentTime = 0;
+      a.volume = volume === undefined ? 0.55 : volume;
+      a.play().catch(() => {});   // autoplay blocked, ignore
+    } catch (e) { /* never let audio break a study session */ }
+  }
+
+  function soundCorrect() {
+    qnStreak++;
+    if (qnStreak <= 10) {
+      playSound('correct-' + qnStreak);
+    } else {
+      // Past the ladder — loop the Shepard bells so the pitch keeps
+      // climbing however long the streak runs
+      playSound('streak-' + (((qnStreak - 11) % 6) + 1));
+    }
+  }
+
+  function soundWrong()    { qnStreak = 0; playSound('wrong', 0.45); }
+  function soundComplete() { qnStreak = 0; playSound('complete', 0.6); }
+  function resetStreak()   { qnStreak = 0; }
+
+  function toggleSound() {
+    soundOn = !soundOn;
+    try { localStorage.setItem('qn-sound', soundOn ? 'on' : 'off'); } catch (e) {}
+    renderSoundToggle();
+    if (soundOn) playSound('correct-3');   // preview so they hear the change
+  }
+
+  function renderSoundToggle() {
+    const el = document.getElementById('soundToggle');
+    if (!el) return;
+    el.textContent = soundOn ? 'Sound on' : 'Sound off';
+    el.classList.toggle('on', soundOn);
+  }
+
   // ── Settings ────────────────────────────────────────────────
   //
   // Class colours are the one place colour carries meaning, so each
@@ -1951,6 +2009,7 @@
     const v = document.getElementById('versionLabel');
     document.getElementById('settingsVersion').textContent = v ? v.textContent : '';
     renderCbOptions();
+    renderSoundToggle();
     document.getElementById('settingsOverlay').classList.add('visible');
   }
 
@@ -2181,6 +2240,7 @@
       cramPos   = 0;
       cramEndAt = Date.now() + cramMinutes * 60 * 1000;
 
+      resetStreak();
       closeCram();
       document.getElementById('cramSession').classList.add('visible');
       startCramTimer();
@@ -2359,6 +2419,8 @@
         ? (!!choice === !!q.correct_answer)
         : (choice === q.correct_index);
 
+    if (correct) soundCorrect(); else soundWrong();
+
     // Score reflects knowledge: only the first encounter counts
     if (card.firstTry === null) card.firstTry = correct;
     card.seen++;
@@ -2406,6 +2468,7 @@
 
   function showCramSummary() {
     clearInterval(cramTick);
+    soundComplete();
     const answered = cramPool.filter(c => c.firstTry !== null);
     const right    = answered.filter(c => c.firstTry).length;
     const pct      = answered.length ? Math.round((right / answered.length) * 100) : 0;
