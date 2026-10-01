@@ -93,6 +93,62 @@
   [data-theme="dark"] .theme-btn .icon-moon { display: none; }
   [data-theme="dark"] .theme-btn .icon-sun  { display: block; }
 
+  /* ── Answer feedback box ──────────────────────────────────────
+     The background is tinted by outcome, so this box cannot use
+     var(--text): in dark mode that is near-white and vanished
+     against the pale pastel. Each state carries its own pair. */
+  .qn-fb       { padding: 14px; border-radius: 12px; margin-top: 14px; }
+  .qn-fb-head  { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .qn-fb-body  { font-size: 14px; line-height: 1.65; }
+  /* Green is always the correct answer, red is always what the student
+     wrote. Both are labelled in words too - red/green alone is exactly
+     the pair the colourblind palettes exist to work around. */
+  .qn-fb-model { margin-top: 12px; padding: 12px; border-radius: 10px;
+                 background: #DDEFC9; color: #1A1A2E;
+                 border: 1px solid rgba(47,90,13,0.25); }
+  .qn-fb-model .qn-fb-label { color: #2F5A0D; opacity: 1; }
+
+  .qn-ans-wrong { background: #FBE4E4 !important; border-color: #D85A30 !important;
+                  color: #1A1A2E !important; }
+  .qn-ans-right { background: #E6F2D9 !important; border-color: #1D9E75 !important;
+                  color: #1A1A2E !important; }
+  .qn-ans-tag   { font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+                  text-transform: uppercase; margin: 10px 0 5px; }
+  .qn-ans-partial { background: #FAEBCB !important; border-color: #C98A1E !important;
+                   color: #1A1A2E !important; }
+  .qn-ans-tag-wrong   { color: #A32D2D; }
+  .qn-ans-tag-partial { color: #7A4E05; }
+  .qn-ans-tag-right   { color: #3B6D11; }
+  .qn-fb-label { font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+                 text-transform: uppercase; opacity: 0.65; margin-bottom: 5px; }
+
+  .qn-fb-right    { background: #EAF3DE; color: #1A1A2E; }
+  .qn-fb-partial { background: #FAEEDA; color: #1A1A2E; }
+  .qn-fb-wrong     { background: #FCEBEB; color: #1A1A2E; }
+  .qn-fb-right    .qn-fb-head { color: #3B6D11; }
+  .qn-fb-partial .qn-fb-head { color: #854F0B; }
+  .qn-fb-wrong     .qn-fb-head { color: #A32D2D; }
+
+  [data-theme="dark"] .qn-fb-right    { background: #1C3318; color: #DFEBD8; }
+  [data-theme="dark"] .qn-fb-partial { background: #36280F; color: #F0E6D4; }
+  [data-theme="dark"] .qn-fb-wrong     { background: #331B1B; color: #F0DCDC; }
+  [data-theme="dark"] .qn-fb-right    .qn-fb-head { color: #8FD164; }
+  [data-theme="dark"] .qn-fb-partial .qn-fb-head { color: #E8B55C; }
+  [data-theme="dark"] .qn-fb-wrong     .qn-fb-head { color: #F08A8A; }
+
+  [data-theme="dark"] .qn-fb-model { background: #24401E; color: #E2EEDB;
+                                     border-color: rgba(155,219,110,0.3); }
+  [data-theme="dark"] .qn-fb-model .qn-fb-label { color: #9BDB6E; }
+  [data-theme="dark"] .qn-ans-wrong { background: #3A2020 !important;
+                 border-color: #C05A40 !important; color: #F0DCDC !important; }
+  [data-theme="dark"] .qn-ans-right { background: #1C3318 !important;
+                 border-color: #3E8B5F !important; color: #DFEBD8 !important; }
+  [data-theme="dark"] .qn-ans-partial { background: #3D2E12 !important;
+                 border-color: #9A7324 !important; color: #F2E8D6 !important; }
+  [data-theme="dark"] .qn-ans-tag-wrong   { color: #F09A9A; }
+  [data-theme="dark"] .qn-ans-tag-partial { color: #E8B55C; }
+  [data-theme="dark"] .qn-ans-tag-right   { color: #8FD164; }
+
   /* ── Main scroll area ─────────────────────────────────────── */
   main {
     max-width: 1100px;
@@ -1121,7 +1177,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.2.9</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.0</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>

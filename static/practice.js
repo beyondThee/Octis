@@ -79,15 +79,47 @@ function qnEsc(s) {
 
 // A score on its own teaches nothing. Show what the answer should have
 // been so the student can see the gap for themselves.
-function qnModelAnswer(text) {
-  if (!text) return "";
-  return "<div style='margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.14);'>" +
-    "<div style='font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;" +
-    "opacity:0.6;margin-bottom:5px;'>Model answer</div>" +
-    "<div style='font-size:14px;line-height:1.65;color:var(--text);'>" + qnEsc(text) + "</div></div>";
+// Tint the student's own answer box and label it in words, so the
+// red-is-mine / green-is-correct mapping never rests on colour alone.
+function qnMarkAnswer(id, state) {
+  var ta = document.getElementById(id);
+  if (!ta) return;
+  var LABEL = { right:   "Your answer \u2014 correct",
+                partial: "Your answer \u2014 partly right",
+                wrong:   "Your answer \u2014 not quite" };
+  ta.readOnly  = true;
+  ta.className = "qn-ans-" + state;
+  if (!document.getElementById(id + "-tag")) {
+    var tag = document.createElement("div");
+    tag.id          = id + "-tag";
+    tag.className   = "qn-ans-tag qn-ans-tag-" + state;
+    tag.textContent = LABEL[state];
+    ta.parentNode.insertBefore(tag, ta);
+  }
 }
 
-var QN_PASS = 6;
+function qnModelAnswer(text) {
+  if (!text) return "";
+  return "<div class='qn-fb-model'><div class='qn-fb-label'>Correct answer</div>" +
+    "<div class='qn-fb-body'>" + qnEsc(text) + "</div></div>";
+}
+
+// Two separate questions, deliberately two separate numbers:
+//   QN_PASS  - does this count as correct? (streak, weak-spot progress)
+//   QN_GREEN - do we show it as fully right?
+// A 6 is "core idea recalled but thin", so it earns the credit without
+// earning the green. Keeping PASS low is what stopped the grading
+// feeling punishing; keeping GREEN high keeps the colour honest.
+var QN_PASS  = 6;
+var QN_GREEN = 7;
+var QN_AMBER = 4;
+
+// One place decides right / partly / wrong, so the answer box, the
+// feedback box and the written label can never drift apart. These
+// mirror the scoring anchors the server grades against.
+function qnState(score) {
+  return score >= QN_GREEN ? "right" : score >= QN_AMBER ? "partial" : "wrong";
+}
 
 function sndCorrect()  { if (typeof soundCorrect  === "function") soundCorrect(); }
 function sndWrong()    { if (typeof soundWrong    === "function") soundWrong(); }
@@ -304,12 +336,13 @@ function submitOpenEnded(idx) {
     if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
 
     var fb = document.getElementById("openEndedFeedback");
-    var bgColor = correct ? "#EAF3DE" : data.score >= 5 ? "#FAEEDA" : "#FCEBEB";
-    var txColor = correct ? "#3B6D11" : data.score >= 5 ? "#854F0B" : "#A32D2D";
-    fb.style.cssText = "display:block;padding:14px;border-radius:12px;background:" + bgColor + ";margin-top:14px;";
-    fb.innerHTML = "<div style='font-size:16px;font-weight:700;color:" + txColor + ";margin-bottom:6px;'>Score: " +
-      data.score + "/10</div><div style='font-size:14px;color:var(--text);line-height:1.6;'>" +
-      qnEsc(data.feedback) + "</div>" + qnModelAnswer(q.model_answer);
+    var st = qnState(data.score);
+    qnMarkAnswer("openEndedAnswer", st);
+    fb.className = "qn-fb qn-fb-" + st;
+    fb.style.display = "block";
+    fb.innerHTML = "<div class='qn-fb-head'>Score: " + data.score + "/10</div>" +
+      "<div class='qn-fb-body'>" + qnEsc(data.feedback) + "</div>" +
+      qnModelAnswer(q.model_answer);
 
     appendNextBtn(document.getElementById("testQuestions"));
     scrollIntoView(fb);
@@ -515,8 +548,15 @@ function answerWeakMC(choiceIdx) {
   var btns = document.querySelectorAll("[id^='wmc-']");
   for (var i = 0; i < btns.length; i++) {
     btns[i].disabled = true;
-    if (i === q.correct_index) { btns[i].style.background = "#EAF3DE"; btns[i].style.borderColor = "#1D9E75"; }
-    else if (i === choiceIdx && !correct) { btns[i].style.background = "#FCEBEB"; btns[i].style.borderColor = "#D85A30"; }
+    // set colour too, not just background - these stay pale in dark mode,
+    // so inheriting var(--text) made the label invisible
+    if (i === q.correct_index) {
+      btns[i].style.background = "#EAF3DE"; btns[i].style.borderColor = "#1D9E75";
+      btns[i].style.color = "#3B6D11";
+    } else if (i === choiceIdx && !correct) {
+      btns[i].style.background = "#FCEBEB"; btns[i].style.borderColor = "#D85A30";
+      btns[i].style.color = "#A32D2D";
+    }
   }
 
   var wrap = document.getElementById("weakspotContent");
@@ -586,12 +626,17 @@ function submitWeakOpen() {
     if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
 
     var fb = document.getElementById("weakOpenFeedback");
-    fb.style.cssText = "display:block;padding:14px;border-radius:12px;background:" +
-      (correct && confident ? "#EAF3DE" : "#FCEBEB") + ";margin-top:14px;";
-    fb.innerHTML = "<div style='font-size:16px;font-weight:700;color:" + (correct ? "#3B6D11" : "#A32D2D") + ";'>" +
-      "Score: " + data.score + "/10" + (correct && confident ? " — Mastered!" : "") +
-      "</div><div style='font-size:14px;margin-top:6px;color:var(--text);line-height:1.65;'>" +
-      qnEsc(data.feedback) + "</div>" + qnModelAnswer(q.model_answer);
+    // correct but hesitant reads as partial - they knew it, but not solidly
+    var st = qnState(data.score);
+    qnMarkAnswer("weakOpenAnswer", st);
+    // mastery needs speed as well as accuracy, so a correct but hesitant
+    // answer keeps an amber box even though the answer itself reads green
+    fb.className = "qn-fb " + (correct && confident ? "qn-fb-right" : correct ? "qn-fb-partial" : "qn-fb-" + st);
+    fb.style.display = "block";
+    fb.innerHTML = "<div class='qn-fb-head'>Score: " + data.score + "/10" +
+      (correct && confident ? " \u2014 Mastered!" : "") + "</div>" +
+      "<div class='qn-fb-body'>" + qnEsc(data.feedback) + "</div>" +
+      qnModelAnswer(q.model_answer);
 
     appendWeakNextBtn(document.getElementById("weakspotContent"));
     scrollIntoView(fb);
