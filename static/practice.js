@@ -67,6 +67,28 @@ function scrollIntoView(el) {
 }
 
 // Sound lives in index.html; guard so this file works without it
+// Pass mark for written answers. 6 = "core idea recalled, maybe thin".
+// Deliberately below 7: this is retrieval practice, not an exam.
+// Escape text before it goes into innerHTML. Lecture transcripts and
+// model answers can contain < > & which would otherwise break markup.
+function qnEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// A score on its own teaches nothing. Show what the answer should have
+// been so the student can see the gap for themselves.
+function qnModelAnswer(text) {
+  if (!text) return "";
+  return "<div style='margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.14);'>" +
+    "<div style='font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;" +
+    "opacity:0.6;margin-bottom:5px;'>Model answer</div>" +
+    "<div style='font-size:14px;line-height:1.65;color:var(--text);'>" + qnEsc(text) + "</div></div>";
+}
+
+var QN_PASS = 6;
+
 function sndCorrect()  { if (typeof soundCorrect  === "function") soundCorrect(); }
 function sndWrong()    { if (typeof soundWrong    === "function") soundWrong(); }
 function sndComplete() { if (typeof soundComplete === "function") soundComplete(); }
@@ -275,7 +297,7 @@ function submitOpenEnded(idx) {
   })
   .then(function (res) { return res.json(); })
   .then(function (data) {
-    var correct = data.score >= 7;
+    var correct = data.score >= QN_PASS;
     practiceAnswers[idx] = { correct: correct, confident: confident, type: "open", score: data.score };
     if (correct) sndCorrect(); else sndWrong();
 
@@ -286,7 +308,8 @@ function submitOpenEnded(idx) {
     var txColor = correct ? "#3B6D11" : data.score >= 5 ? "#854F0B" : "#A32D2D";
     fb.style.cssText = "display:block;padding:14px;border-radius:12px;background:" + bgColor + ";margin-top:14px;";
     fb.innerHTML = "<div style='font-size:16px;font-weight:700;color:" + txColor + ";margin-bottom:6px;'>Score: " +
-      data.score + "/10</div><div style='font-size:14px;color:var(--text);line-height:1.6;'>" + data.feedback + "</div>";
+      data.score + "/10</div><div style='font-size:14px;color:var(--text);line-height:1.6;'>" +
+      qnEsc(data.feedback) + "</div>" + qnModelAnswer(q.model_answer);
 
     appendNextBtn(document.getElementById("testQuestions"));
     scrollIntoView(fb);
@@ -556,7 +579,7 @@ function submitWeakOpen() {
   })
   .then(function (res) { return res.json(); })
   .then(function (data) {
-    var correct = data.score >= 7;
+    var correct = data.score >= QN_PASS;
     weakSpotAnswers[weakSpotIndex] = { correct: correct, confident: confident, type: "open", score: data.score };
     if (correct && confident) sndCorrect(); else sndWrong();
 
@@ -567,7 +590,8 @@ function submitWeakOpen() {
       (correct && confident ? "#EAF3DE" : "#FCEBEB") + ";margin-top:14px;";
     fb.innerHTML = "<div style='font-size:16px;font-weight:700;color:" + (correct ? "#3B6D11" : "#A32D2D") + ";'>" +
       "Score: " + data.score + "/10" + (correct && confident ? " — Mastered!" : "") +
-      "</div><div style='font-size:14px;margin-top:6px;color:var(--text);'>" + data.feedback + "</div>";
+      "</div><div style='font-size:14px;margin-top:6px;color:var(--text);line-height:1.65;'>" +
+      qnEsc(data.feedback) + "</div>" + qnModelAnswer(q.model_answer);
 
     appendWeakNextBtn(document.getElementById("weakspotContent"));
     scrollIntoView(fb);

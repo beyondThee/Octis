@@ -1910,9 +1910,9 @@
   }
 
   // ── Sound ───────────────────────────────────────────────────
-  // A correct answer plays the next bell up the scale. After the
-  // ladder runs out the Shepard set takes over, which keeps rising
-  // forever with no audible reset. A miss resets the streak.
+  // Three bells, each a little higher than the last. A correct answer
+  // steps up one; past the third it cycles back to the first so a long
+  // streak keeps a sense of movement. A miss resets to the bottom.
   let soundOn   = true;
   let qnStreak  = 0;
   try { soundOn = localStorage.getItem('qn-sound') !== 'off'; } catch (e) {}
@@ -1929,15 +1929,10 @@
     } catch (e) { /* never let audio break a study session */ }
   }
 
+  const QN_BELLS = 3;
   function soundCorrect() {
     qnStreak++;
-    if (qnStreak <= 10) {
-      playSound('correct-' + qnStreak);
-    } else {
-      // Past the ladder — loop the Shepard bells so the pitch keeps
-      // climbing however long the streak runs
-      playSound('streak-' + (((qnStreak - 11) % 6) + 1));
-    }
+    playSound('correct-' + (((qnStreak - 1) % QN_BELLS) + 1));
   }
 
   function soundWrong()    { qnStreak = 0; playSound('wrong', 0.45); }
