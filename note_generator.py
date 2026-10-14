@@ -129,42 +129,36 @@ class NoteGenerator:
             raise GenerateError(detail or f"Server returned {response.status_code}", reason)
         return response.json()
 
-    def generate(self, transcript):
-        response = requests.post(
-            f"{SERVER_URL}/generate",
-            headers=get_server_headers(self.jwt_token),
-            json={"transcript": transcript},
-            timeout=120,
-        )
+    def _post(self, path, payload, timeout):
+        """Every server call goes through here so a dropped connection
+        becomes a clean reason code, instead of a raw urllib3 dump landing
+        in front of the student."""
+        try:
+            response = requests.post(
+                f"{SERVER_URL}{path}",
+                headers=get_server_headers(self.jwt_token),
+                json=payload,
+                timeout=timeout,
+            )
+        except requests.exceptions.Timeout:
+            raise GenerateError("The server took too long to respond.", "timeout")
+        except requests.exceptions.RequestException:
+            raise GenerateError("No internet connection.", "offline")
         return self._handle(response)
 
+    def generate(self, transcript):
+        return self._post("/generate", {"transcript": transcript}, 120)
+
     def generate_practice_test(self, transcript):
-        response = requests.post(
-            f"{SERVER_URL}/practice-test",
-            headers=get_server_headers(self.jwt_token),
-            json={"transcript": transcript},
-            timeout=150,
-        )
-        return self._handle(response)
+        return self._post("/practice-test", {"transcript": transcript}, 150)
 
     def generate_cram(self, lectures, count=40):
         """
         lectures: [{"title": str, "flashcards": str}, ...]
         Returns {"questions": [...]}.
         """
-        response = requests.post(
-            f"{SERVER_URL}/cram",
-            headers=get_server_headers(self.jwt_token),
-            json={"lectures": lectures, "count": count},
-            timeout=180,
-        )
-        return self._handle(response)
+        return self._post("/cram", {"lectures": lectures, "count": count}, 180)
 
     def generate_with_textbook(self, transcript, textbook_text):
-        response = requests.post(
-            f"{SERVER_URL}/textbook",
-            headers=get_server_headers(self.jwt_token),
-            json={"transcript": transcript, "textbook": textbook_text},
-            timeout=120,
-        )
-        return self._handle(response)
+        return self._post("/textbook",
+                          {"transcript": transcript, "textbook": textbook_text}, 120)

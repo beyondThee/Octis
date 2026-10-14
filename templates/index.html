@@ -93,6 +93,105 @@
   [data-theme="dark"] .theme-btn .icon-moon { display: none; }
   [data-theme="dark"] .theme-btn .icon-sun  { display: block; }
 
+  /* ── Theme switching ───────────────────────────────────────────
+     31 elements each transition their own colour, and they do not start
+     on the same frame, so transitioning them individually made the theme
+     sweep across the page. Instead the swap is instant underneath and the
+     whole page cross-fades as a single snapshot via View Transitions -
+     one animation, nothing left to stagger. */
+  html.qn-no-transition,
+  html.qn-no-transition *,
+  html.qn-no-transition *::before,
+  html.qn-no-transition *::after {
+    transition: none !important;
+  }
+
+  /* Fallback where View Transitions is unavailable: one identical fade on
+     every element, so nothing is left to stagger. */
+  html.qn-theming,
+  html.qn-theming *,
+  html.qn-theming *::before,
+  html.qn-theming *::after {
+    transition: background-color 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                background       0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                color            0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color     0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                fill             0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow       0.34s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.4s;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Session progress bar ─────────────────────────────────── */
+  .qn-prog { height: 5px; border-radius: 3px; background: var(--border);
+             overflow: hidden; margin-bottom: 18px; }
+  .qn-prog > span { display: block; height: 100%; width: 0;
+             background: var(--blue); border-radius: 3px;
+             transition: width 0.45s cubic-bezier(.4,0,.2,1); }
+
+  /* ── Answer flash ──────────────────────────────────────────────
+     One pulse on the question card, deliberately NOT the whole screen.
+     A full-viewport flash is unpleasant by the twentieth question and
+     large-area flashing is the pattern photosensitivity guidance warns
+     about. Correct settles upward; wrong shakes, which reads as "no"
+     without needing colour. */
+  @keyframes qn-pulse-right {
+    0%   { box-shadow: 0 0 0 0 rgba(29,158,117,0);    transform: scale(1); }
+    22%  { box-shadow: 0 0 0 5px rgba(29,158,117,.40); transform: scale(1.012); }
+    100% { box-shadow: 0 0 0 0 rgba(29,158,117,0);    transform: scale(1); }
+  }
+  @keyframes qn-pulse-wrong {
+    0%   { box-shadow: 0 0 0 0 rgba(216,90,48,0);    }
+    22%  { box-shadow: 0 0 0 5px rgba(216,90,48,.40); }
+    100% { box-shadow: 0 0 0 0 rgba(216,90,48,0);    }
+  }
+  @keyframes qn-shake {
+    0%,100% { transform: translateX(0); }
+    20%     { transform: translateX(-7px); }
+    45%     { transform: translateX(6px); }
+    70%     { transform: translateX(-3px); }
+  }
+  .qn-flash-right { animation: qn-pulse-right 0.55s ease-out 1; }
+  .qn-flash-wrong { animation: qn-pulse-wrong 0.55s ease-out 1,
+                               qn-shake 0.34s ease-in-out 1; }
+
+  /* ── Verdict badge ────────────────────────────────────────────
+     Icon and word carry the meaning so the colour is reinforcement,
+     not the signal. Same reason the class palettes exist. */
+  .qn-verdict { display: inline-flex; align-items: center; gap: 7px;
+                font-size: 13px; font-weight: 700; letter-spacing: .3px; }
+  .qn-verdict .qn-ico { width: 20px; height: 20px; border-radius: 50%;
+                flex: 0 0 20px; display: inline-flex; align-items: center;
+                justify-content: center; font-size: 13px; font-weight: 700;
+                color: #fff; }
+  .qn-v-right .qn-ico { background: #1D9E75; }
+  .qn-v-partial .qn-ico { background: #C98A1E; }
+  .qn-v-wrong .qn-ico { background: #D85A30; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qn-flash-right, .qn-flash-wrong { animation: none; }
+    .qn-flash-right { box-shadow: 0 0 0 3px rgba(29,158,117,.45); }
+    .qn-flash-wrong { box-shadow: 0 0 0 3px rgba(216,90,48,.45); }
+    .qn-prog > span { transition: none; }
+  }
+
+  /* ── Settings sliders & focus-sound picker ─────────────────── */
+  .qn-slider-row { display:flex; align-items:center; gap:12px; margin:10px 0 4px; }
+  .qn-slider-row label { font-size:13px; color:var(--text-sub); min-width:72px; }
+  .qn-slider { -webkit-appearance:none; appearance:none; flex:1; height:4px;
+               border-radius:3px; background:var(--border); outline:none; }
+  .qn-slider::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px;
+               border-radius:50%; background:var(--blue); cursor:pointer; border:none; }
+  .qn-slider::-moz-range-thumb { width:16px; height:16px; border-radius:50%;
+               background:var(--blue); cursor:pointer; border:none; }
+  .qn-slider:disabled::-webkit-slider-thumb { background:var(--muted); cursor:default; }
+  .qn-slider-val { font-size:12px; color:var(--muted); min-width:34px; text-align:right;
+                   font-variant-numeric:tabular-nums; }
+
   /* ── Answer feedback box ──────────────────────────────────────
      The background is tinted by outcome, so this box cannot use
      var(--text): in dark mode that is near-white and vanished
@@ -461,6 +560,7 @@
     padding: 24px;
   }
   .settings-overlay.visible { display: flex; }
+  .settings-sheet { max-height: 86vh; overflow-y: auto; }
 
   .settings-sheet {
     background: var(--bg);
@@ -546,6 +646,8 @@
     text-align: left;
     transition: border-color 0.15s, background 0.15s;
   }
+  .cb-text { flex: 1; line-height: 1.35; }
+  .cb-hint { font-size: 11px; color: var(--muted); }
   .cb-opt:hover { background: var(--blue-light); }
   .cb-opt.on { border-color: var(--blue); border-width: 2px; }
 
@@ -1018,7 +1120,6 @@
 
   .results-back:hover { background: var(--blue-hover); transform: translateX(-2px); }
 
-
   .results-title {
     font-family: 'DM Serif Display', serif;
     font-size: 22px;
@@ -1177,7 +1278,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.0</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.1</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -1299,46 +1400,11 @@
     </div>
 
     <!-- Settings -->
-    <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings(event)">
-      <div class="settings-sheet" onclick="event.stopPropagation()">
-        <div class="settings-head">
-          <div class="settings-title">Settings</div>
-          <button class="settings-x" onclick="closeSettings()">&times;</button>
-        </div>
 
-        <div class="settings-group">
-          <div class="settings-label">ACCOUNT</div>
-          <div id="settingsEmail" style="font-size:14px;color:var(--text-sub);margin-bottom:12px;"></div>
-          <button class="settings-action" onclick="doLogout()">Sign out</button>
-        </div>
+  <!-- Settings lives at body level on purpose. It used to sit inside
+       #home-screen, which showResults() hides - so a fixed overlay nested
+       in it could never render during a test, flashcards or cram. -->
 
-        <div class="settings-group">
-          <div class="settings-label">SOUND</div>
-          <div class="settings-note">
-            A rising chime for each correct answer in tests and cram sessions.
-            Off by default is worth considering if you study in a quiet library.
-          </div>
-          <button class="cb-opt" id="soundToggle" onclick="toggleSound()"></button>
-        </div>
-
-        <div class="settings-group">
-          <div class="settings-label">COLOUR VISION</div>
-          <div class="settings-note">
-            Class colours are picked to stay distinguishable. If they look
-            similar to you, choose the closest match below.
-          </div>
-          <div id="cbOptions"></div>
-        </div>
-
-        <div class="settings-group">
-          <div class="settings-label">ABOUT</div>
-          <div style="font-size:13px;color:var(--muted);line-height:1.7;">
-            Quick Notes <span id="settingsVersion"></span><br>
-            Support: hello@quicknotesai.com
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Suggest a feature -->
     <div id="suggestWrap" style="text-align:center;">
@@ -1404,6 +1470,17 @@
           <div class="cram-title" id="cramProgress">Cram</div>
           <div id="cramTimer" style="font-size:20px;font-weight:600;color:var(--muted);
             font-variant-numeric:tabular-nums;"></div>
+          <!-- the nav is covered by this fixed overlay, so settings needs
+               its own way in while a session is running -->
+          <button class="theme-btn" onclick="openSettings()" title="Settings"
+            style="flex:0 0 auto;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"
+              style="width:18px;height:18px;stroke:var(--text);fill:none;">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
         </div>
         <div class="cram-track"><div class="cram-track-fill" id="cramTrackFill"></div></div>
         <div id="cramBody" style="margin-top:24px;"></div>
@@ -1426,6 +1503,57 @@
       <div id="historyList"></div>
     </div>
 
+  </div>
+
+  <!-- Settings sits at body level deliberately. It used to live inside
+       #home-screen, which showResults() hides - so this fixed overlay
+       could never render during a test, flashcards or cram. -->
+  <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings(event)">
+  <div class="settings-sheet" onclick="event.stopPropagation()">
+    <div class="settings-head">
+      <div class="settings-title">Settings</div>
+      <button class="settings-x" onclick="closeSettings()">&times;</button>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">ACCOUNT</div>
+      <div id="settingsEmail" style="font-size:14px;color:var(--text-sub);margin-bottom:12px;"></div>
+      <button class="settings-action" onclick="doLogout()">Sign out</button>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">ANSWER SOUNDS</div>
+      <div class="settings-note">
+        A rising chime for each correct answer, a low note for a miss.
+        Worth turning off if you study in a quiet library.
+      </div>
+      <button class="cb-opt" id="soundToggle" onclick="toggleSound()"></button>
+      <div class="qn-slider-row">
+        <label for="fxVol">Volume</label>
+        <input type="range" class="qn-slider" id="fxVol" min="0" max="100" step="5"
+               oninput="setFxVolume(this.value)">
+        <span class="qn-slider-val" id="fxVolVal"></span>
+      </div>
+    </div>
+
+
+    <div class="settings-group">
+      <div class="settings-label">COLOUR VISION</div>
+      <div class="settings-note">
+        Class colours are picked to stay distinguishable. If they look
+        similar to you, choose the closest match below.
+      </div>
+      <div id="cbOptions"></div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">ABOUT</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7;">
+        Quick Notes <span id="settingsVersion"></span><br>
+        Support: hello@quicknotesai.com
+      </div>
+    </div>
+  </div>
   </div>
 
   <!-- Results screen -->
@@ -1472,6 +1600,7 @@
     <!-- Practice Test tab -->
     <div class="tab-content" id="tab-test">
       <div id="testNotStarted" style="text-align:center;padding:32px 0;">
+        <div id="testError" class="qn-fb qn-fb-partial" style="display:none;text-align:left;margin-bottom:22px;"></div>
         <div style="font-size:15px;color:var(--text-sub);margin-bottom:20px;line-height:1.6;">AI will generate a custom practice test from your lecture.<br>Questions include multiple choice, true/false, and open-ended.</div>
         <button onclick="startPracticeTest()" style="padding:14px 40px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#4A42CC'" onmouseout="this.style.background='var(--blue)'">Generate Practice Test</button>
       </div>
@@ -1486,6 +1615,7 @@
           background:var(--blue-light);border-radius:14px;font-size:14px;
           color:var(--text);line-height:1.65;text-align:left;"></div>
       </div>
+      <div class="qn-prog" id="testProg" style="display:none;"><span></span></div>
       <div id="testQuestions" style="display:none;"></div>
       <div id="testResults" style="display:none;"></div>
     </div>
@@ -1511,7 +1641,8 @@
   <div id="study-screen" style="display:none;animation:fade-up 0.4s ease both;">
     <button class="results-back" onclick="exitStudy()">← Back</button>
     <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px;" id="studyTitle"></div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:24px;" id="studyProgress"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;" id="studyProgress"></div>
+    <div class="qn-prog" id="studyProg" style="margin-bottom:24px;"><span></span></div>
 
     <!-- Card container -->
     <div id="studyCardWrap" style="perspective:1000px;margin-bottom:20px;
@@ -1615,11 +1746,55 @@
   try {
     isDark = localStorage.getItem('qn-theme') === 'dark';
   } catch (e) { /* storage unavailable — fall back to light */ }
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : '');
+  // The swap itself is always instant - every element repaints on the same
+  // frame instead of racing. The smoothness comes from View Transitions,
+  // which cross-fades a snapshot of the whole page as one layer.
+  // Just flip the attribute. Suppressing transitions is the caller's job,
+  // because how long they stay suppressed depends on which path we took.
+  function swapTheme(dark) {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
+  }
+
+  let _themeTimer = null;
+  function applyTheme(dark, animate) {
+    const root    = document.documentElement;
+    const reduced = window.matchMedia &&
+                    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (!animate || reduced) { swapTheme(dark); return; }
+
+    if (document.startViewTransition) {
+      // The browser cross-fades a real before/after snapshot. Per-element
+      // transitions must stay off for the WHOLE crossfade - releasing them
+      // early lets them animate the live DOM underneath the snapshot, and
+      // that second staggered pass becomes visible when the fade lifts.
+      root.classList.add('qn-no-transition');
+      const release = () => root.classList.remove('qn-no-transition');
+      let vt = null;
+      try { vt = document.startViewTransition(() => swapTheme(dark)); }
+      catch (e) { swapTheme(dark); }
+      if (vt && vt.finished && typeof vt.finished.finally === 'function') {
+        vt.finished.finally(release);
+      } else {
+        clearTimeout(_themeTimer);
+        _themeTimer = setTimeout(release, 600);   // never leave them off
+      }
+      return;
+    }
+
+    // No View Transitions: hand every element the same fade instead, so
+    // the page moves as one piece rather than in two passes.
+    root.classList.add('qn-theming');
+    clearTimeout(_themeTimer);
+    _themeTimer = setTimeout(() => root.classList.remove('qn-theming'), 430);
+    swapTheme(dark);
+  }
+
+  applyTheme(isDark, false);                // no fade on page load
 
   document.getElementById('themeBtn').addEventListener('click', () => {
     isDark = !isDark;
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : '');
+    applyTheme(isDark, true);
     try {
       localStorage.setItem('qn-theme', isDark ? 'dark' : 'light');
     } catch (e) { /* ignore */ }
@@ -1970,8 +2145,13 @@
   // steps up one; past the third it cycles back to the first so a long
   // streak keeps a sense of movement. A miss resets to the bottom.
   let soundOn   = true;
+  let fxVolume  = 1;     // user multiplier on the chime/buzzer, 0..1
   let qnStreak  = 0;
   try { soundOn = localStorage.getItem('qn-sound') !== 'off'; } catch (e) {}
+  try {
+    const v = parseFloat(localStorage.getItem('qn-fx-vol'));
+    if (!isNaN(v)) fxVolume = Math.max(0, Math.min(1, v));
+  } catch (e) {}
 
   const _sndCache = {};
   function playSound(name, volume) {
@@ -1980,7 +2160,8 @@
       let a = _sndCache[name];
       if (!a) { a = new Audio('/static/sounds/' + name + '.wav'); _sndCache[name] = a; }
       a.currentTime = 0;
-      a.volume = volume === undefined ? 0.55 : volume;
+      var base = volume === undefined ? 0.55 : volume;
+      a.volume = Math.max(0, Math.min(1, base * fxVolume));
       a.play().catch(() => {});   // autoplay blocked, ignore
     } catch (e) { /* never let audio break a study session */ }
   }
@@ -1992,13 +2173,39 @@
   }
 
   function soundWrong()    { qnStreak = 0; playSound('wrong', 0.45); }
-  function soundComplete() { qnStreak = 0; playSound('complete', 0.6); }
+  // 70% or better earns the finishing chime; below that the low note.
+  // Called with no argument (weak spots) it always plays the chime, since
+  // that screen is only reached once every weak spot is cleared.
+  const QN_PASS_PCT = 70;
+  function soundComplete(pct) {
+    qnStreak = 0;
+    if (typeof pct === 'number' && pct < QN_PASS_PCT) playSound('wrong');
+    else playSound('complete', 0.6);
+  }
   function resetStreak()   { qnStreak = 0; }
+
+  // Volume for the answer chime and buzzer. Dragging it plays a sample so
+  // the level you hear is the level you are setting.
+  function setFxVolume(pct) {
+    fxVolume = Math.max(0, Math.min(1, pct / 100));
+    try { localStorage.setItem('qn-fx-vol', String(fxVolume)); } catch (e) {}
+    const lbl = document.getElementById('fxVolVal');
+    if (lbl) lbl.textContent = Math.round(fxVolume * 100) + '%';
+    if (soundOn) playSound('correct-2');
+  }
+
+  function renderFxVolume() {
+    const sl = document.getElementById('fxVol');
+    if (sl) { sl.value = Math.round(fxVolume * 100); sl.disabled = !soundOn; }
+    const lbl = document.getElementById('fxVolVal');
+    if (lbl) lbl.textContent = Math.round(fxVolume * 100) + '%';
+  }
 
   function toggleSound() {
     soundOn = !soundOn;
     try { localStorage.setItem('qn-sound', soundOn ? 'on' : 'off'); } catch (e) {}
     renderSoundToggle();
+    renderFxVolume();
     if (soundOn) playSound('correct-3');   // preview so they hear the change
   }
 
@@ -2017,25 +2224,35 @@
   // those palettes lean on blue-vs-orange-vs-yellow, which stays
   // separable. Tritanopia confuses blue/yellow, so that one leans on
   // red-vs-teal. The mono palette drops hue entirely and uses lightness.
+  // Labelled by what a person would actually notice, because almost nobody
+  // knows their own clinical subtype. Four palettes cover all seven named
+  // conditions: the partial forms (deuteranomaly, protanomaly, tritanomaly)
+  // confuse the same colours as the complete ones, just less severely, so
+  // they need the same palette.
   const CB_PALETTES = {
     none: {
       label: 'Standard',
+      hint:  'Default colours',
       colors: ['#4C72D9', '#D9822B', '#2E9E7C', '#9B5DE5', '#C1476B', '#5BA3C7']
     },
     deuteranopia: {
-      label: 'Red-green (deuteranopia)',
+      label: 'Red and green look similar',
+      hint:  'Most common \u2014 deuteranopia / deuteranomaly',
       colors: ['#1F6FD0', '#E69F00', '#F0E442', '#56B4E9', '#8B5A2B', '#0A2F5C']
     },
     protanopia: {
-      label: 'Red-green (protanopia)',
+      label: 'Red and green similar, reds look dark',
+      hint:  'Protanopia / protanomaly',
       colors: ['#0072B2', '#E69F00', '#F0E442', '#7BB8E8', '#5C4033', '#00344D']
     },
     tritanopia: {
-      label: 'Blue-yellow (tritanopia)',
+      label: 'Blue and yellow look similar',
+      hint:  'Rare \u2014 tritanopia / tritanomaly',
       colors: ['#C0392B', '#1ABC9C', '#8E44AD', '#E67E22', '#16A085', '#6D4C41']
     },
     mono: {
-      label: 'No colour (use shades)',
+      label: 'Little or no colour at all',
+      hint:  'Achromatopsia \u2014 shades only',
       colors: ['#1A1A1A', '#4D4D4D', '#7A7A7A', '#A6A6A6', '#C9C9C9', '#E8E8E8']
     }
   };
@@ -2054,14 +2271,31 @@
     myClasses.forEach((c, i) => { c.displayColor = paletteColor(i); });
   }
 
+  // The overlay opens FIRST and unconditionally. Previously any one failing
+  // step - a missing element, a throwing render - killed the function before
+  // the last line ran, and the button just looked dead with no clue why.
+  // Each step is now isolated and logs what broke.
   function openSettings() {
-    document.getElementById('settingsEmail').textContent =
-      document.getElementById('accountEmail').textContent || 'Not signed in';
-    const v = document.getElementById('versionLabel');
-    document.getElementById('settingsVersion').textContent = v ? v.textContent : '';
-    renderCbOptions();
-    renderSoundToggle();
-    document.getElementById('settingsOverlay').classList.add('visible');
+    const ov = document.getElementById('settingsOverlay');
+    if (ov) ov.classList.add('visible');
+    else console.error('[settings] #settingsOverlay is missing from the page');
+
+    const put = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+      else console.warn('[settings] missing element: #' + id);
+    };
+
+    try {
+      const acct = document.getElementById('accountEmail');
+      put('settingsEmail', (acct && acct.textContent.trim()) || 'Not signed in');
+      const v = document.getElementById('versionLabel');
+      put('settingsVersion', v ? v.textContent : '');
+    } catch (e) { console.warn('[settings] header failed:', e); }
+
+    try { renderCbOptions();   } catch (e) { console.warn('[settings] palettes failed:', e); }
+    try { renderSoundToggle(); } catch (e) { console.warn('[settings] sound toggle failed:', e); }
+    try { renderFxVolume();    } catch (e) { console.warn('[settings] volume failed:', e); }
   }
 
   function closeSettings(ev) {
@@ -2072,10 +2306,11 @@
 
   function renderCbOptions() {
     const box = document.getElementById('cbOptions');
+    if (!box) return;
     box.innerHTML = Object.keys(CB_PALETTES).map(key => {
       const p = CB_PALETTES[key];
       return `<button class="cb-opt ${cbMode === key ? 'on' : ''}" onclick="setCbMode('${key}')">
-        <span>${p.label}</span>
+        <span class="cb-text">${p.label}<br><span class="cb-hint">${p.hint}</span></span>
         <span class="cb-swatches">${p.colors.map(c =>
           `<span style="background:${c}"></span>`).join('')}</span>
       </button>`;
@@ -2519,10 +2754,10 @@
 
   function showCramSummary() {
     clearInterval(cramTick);
-    soundComplete();
     const answered = cramPool.filter(c => c.firstTry !== null);
     const right    = answered.filter(c => c.firstTry).length;
     const pct      = answered.length ? Math.round((right / answered.length) * 100) : 0;
+    soundComplete(pct);
     const colour   = pct >= 80 ? '#1D9E75' : pct >= 60 ? '#854F0B' : '#A32D2D';
 
     const weak = cramPool.filter(c => c.firstTry === false)
@@ -2895,6 +3130,8 @@
     document.getElementById('currentHistoryIndex')     && (document.getElementById('currentHistoryIndex').value = results._index ?? -1);
     window._currentResultsEntry = entry;
     window._currentResultsIndex = results._index ?? -1;
+    // a different lecture means a different test - clear the last one out
+    if (typeof qnResetPractice === 'function') qnResetPractice();
     document.getElementById('resultsMeta').textContent  =
       `Saved · ${entry.date || ''} · ${entry.duration || ''}`;
 
@@ -3051,6 +3288,11 @@
     const current = studyIndex + 1;
     document.getElementById('studyProgress').textContent =
       `Card ${current} of ${total}`;
+    // measured by cards remembered, not queue position: a requeued card
+    // must not drag the bar backwards
+    if (typeof qnSetProgress === 'function') {
+      qnSetProgress('studyProg', rememberedCards.size, total);
+    }
 
     // Reset flip
     isFlipped = false;
@@ -3113,6 +3355,11 @@
   function rateCard(rating) {
     const activeQueue = studyQueue.filter(i => !studyCards[i].disabled);
     const idx = activeQueue[studyIndex];
+
+    if (typeof qnFlash === 'function') {
+      qnFlash(document.getElementById('studyCardWrap'),
+              rating === 'remember' ? 'right' : 'wrong');
+    }
 
     if (rating === 'forgot') {
       rememberedCards.delete(idx);
@@ -3195,6 +3442,8 @@
     document.getElementById('ratingArea').style.display    = 'none';
     document.getElementById('studyDone').style.display     = 'block';
     document.getElementById('studyProgress').textContent   = 'Session complete';
+    const sp = document.getElementById('studyProg');
+    if (sp && sp.firstElementChild) sp.firstElementChild.style.width = '100%';
   }
 
   function exitStudy() {

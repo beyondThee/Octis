@@ -71,6 +71,123 @@ function scrollIntoView(el) {
 // Deliberately below 7: this is retrieval practice, not an exam.
 // Escape text before it goes into innerHTML. Lecture transcripts and
 // model answers can contain < > & which would otherwise break markup.
+// Offline and server problems get a calm inline panel. The old alert()
+// put a raw urllib3 connection trace in front of the student.
+// Practice-test and weak-spot state lives at module scope, so opening a
+// different lecture has to clear it. Without this, switchTab() sees a
+// non-empty practiceQuestions, skips the fetch entirely, and every lecture
+// shows the last test that was generated.
+// One-shot flash on an element. Re-triggerable: removing the class and
+// forcing a reflow lets the same animation replay on the next answer.
+function qnFlash(el, state) {
+  if (!el) return;
+  var cls = state === "wrong" ? "qn-flash-wrong" : "qn-flash-right";
+  el.classList.remove("qn-flash-right", "qn-flash-wrong");
+  void el.offsetWidth;                 // reflow, so the animation restarts
+  el.classList.add(cls);
+  setTimeout(function () { el.classList.remove(cls); }, 700);
+}
+
+// Icon + word first, colour second - so the verdict survives any palette.
+function qnVerdict(state) {
+  var M = { right:   ["qn-v-right",   "\u2713", "Correct"],
+            partial: ["qn-v-partial", "~",       "Partly right"],
+            wrong:   ["qn-v-wrong",   "\u2715", "Not quite"] };
+  var v = M[state] || M.wrong;
+  return "<span class='qn-verdict " + v[0] + "'><span class='qn-ico'>" +
+         v[1] + "</span>" + v[2] + "</span>";
+}
+
+function qnSetProgress(id, done, total) {
+  var bar = document.getElementById(id);
+  if (!bar) return;
+  var fill = bar.firstElementChild;
+  if (total > 0) {
+    bar.style.display = "";
+    if (fill) fill.style.width = Math.min(100, (done / total) * 100) + "%";
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+function qnResetPractice() {
+  practiceQuestions    = [];
+  practiceAnswers      = {};
+  currentQuestionIndex = 0;
+  questionStartTime    = 0;
+  testCompleted        = false;
+  flashcardsCompleted  = false;
+  weakSpotUnlocked     = false;
+  weakSpotQuestions    = [];
+  weakSpotAnswers      = {};
+  weakSpotIndex        = 0;
+  weakSpotsBuiltCycle  = -1;
+  isSubmitting         = false;
+
+  // wipe rendered questions so stale ones can never flash up
+  ["testQuestions", "testResults"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) { el.style.display = "none"; el.innerHTML = ""; }
+  });
+  // hide only - these hold markup we need to keep
+  qnSetProgress("testProg", 0, 0);
+  ["testLoading", "testError"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  var ns = document.getElementById("testNotStarted");
+  if (ns) ns.style.display = "block";
+  var wc = document.getElementById("weakspotContent");
+  if (wc) wc.innerHTML = "";
+}
+
+function qnTestError(reason, fallback) {
+  var MSG = {
+    offline: ["No internet connection",
+      "Practice tests are written fresh from your lecture, so this step needs a connection. " +
+      "Your recording and notes are safe \u2014 try again once you are back online."],
+    timeout: ["That took longer than expected",
+      "The server did not answer in time. Give it a minute and try again."],
+    access: ["Your access has ended",
+      "Renew from your account page to keep generating study material."]
+  };
+  var m  = MSG[reason] || ["Could not build the test",
+                           fallback || "Something went wrong. Please try again."];
+  var el = document.getElementById("testError");
+  if (!el) return;
+  el.innerHTML = "<div class='qn-fb-head'>" + qnEsc(m[0]) + "</div>" +
+                 "<div class='qn-fb-body'>" + qnEsc(m[1]) + "</div>";
+  el.style.display = "block";
+}
+
+// A grade that never arrived must not be scored. Show why, leave Submit
+// live, record nothing - silently marking the answer wrong is worse than
+// any error message.
+function qnAnswerError(fbId, reason, fallback) {
+  var MSG = {
+    offline: ["No internet connection",
+      "Your answer needs the server to grade it. Nothing has been scored \u2014 " +
+      "reconnect and press Submit again."],
+    timeout: ["That took longer than expected",
+      "The server did not answer in time. Press Submit again in a moment."],
+    access: ["Your access has ended",
+      "Renew from your account page to keep practising."]
+  };
+  var m  = MSG[reason] || ["Could not grade that answer",
+                           fallback || "Nothing has been scored. Please try Submit again."];
+  var fb = document.getElementById(fbId);
+  if (!fb) return;
+  fb.className     = "qn-fb qn-fb-partial";
+  fb.style.display = "block";
+  fb.innerHTML = "<div class='qn-fb-head'>" + qnEsc(m[0]) + "</div>" +
+                 "<div class='qn-fb-body'>" + qnEsc(m[1]) + "</div>";
+}
+
+function qnClearTestError() {
+  var el = document.getElementById("testError");
+  if (el) el.style.display = "none";
+}
+
 function qnEsc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -123,7 +240,7 @@ function qnState(score) {
 
 function sndCorrect()  { if (typeof soundCorrect  === "function") soundCorrect(); }
 function sndWrong()    { if (typeof soundWrong    === "function") soundWrong(); }
-function sndComplete() { if (typeof soundComplete === "function") soundComplete(); }
+function sndComplete(pct) { if (typeof soundComplete === "function") soundComplete(pct); }
 function sndReset()    { if (typeof resetStreak   === "function") resetStreak(); }
 
 function setLoading(btn) {
@@ -149,6 +266,7 @@ function startPracticeTest() {
 
   var notStarted = document.getElementById("testNotStarted");
   if (notStarted) notStarted.style.display = "none";
+  qnClearTestError();
   document.getElementById("testLoading").style.display = "block";
   if (typeof showStudyTip === "function") showStudyTip();
 
@@ -170,7 +288,7 @@ function startPracticeTest() {
     if (data.error) {
       document.getElementById("testLoading").style.display    = "none";
       document.getElementById("testNotStarted").style.display = "block";
-      alert("Error generating test: " + data.error);
+      qnTestError(data.reason, data.error);
       return;
     }
     practiceQuestions    = (data.questions || []).map(function (q) {
@@ -186,13 +304,14 @@ function startPracticeTest() {
   .catch(function (err) {
     document.getElementById("testLoading").style.display    = "none";
     document.getElementById("testNotStarted").style.display = "block";
-    alert("Error: " + err.message);
+    qnTestError("", err.message);
   });
 }
 
 // ── Show Question ──────────────────────────────────────────────
 function showQuestion(idx) {
   if (idx >= practiceQuestions.length) { showTestResults(); return; }
+  qnSetProgress("testProg", idx, practiceQuestions.length);
 
   isSubmitting = false;
   var q    = practiceQuestions[idx];
@@ -265,6 +384,7 @@ function answerMC(idx, choiceIdx) {
   }
 
   var wrap = document.getElementById("testQuestions");
+  qnFlash(wrap, correct ? "right" : "wrong");
   var fb   = document.createElement("div");
   fb.style.cssText = "margin-top:14px;padding:12px 16px;border-radius:12px;background:" +
     (correct ? "#EAF3DE" : "#FCEBEB") + ";color:" + (correct ? "#3B6D11" : "#A32D2D") +
@@ -329,6 +449,12 @@ function submitOpenEnded(idx) {
   })
   .then(function (res) { return res.json(); })
   .then(function (data) {
+    if (data.error || typeof data.score !== "number") {
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || "Submit Answer"; }
+      qnAnswerError("openEndedFeedback", data.reason, data.error);
+      return;
+    }
     var correct = data.score >= QN_PASS;
     practiceAnswers[idx] = { correct: correct, confident: confident, type: "open", score: data.score };
     if (correct) sndCorrect(); else sndWrong();
@@ -338,9 +464,11 @@ function submitOpenEnded(idx) {
     var fb = document.getElementById("openEndedFeedback");
     var st = qnState(data.score);
     qnMarkAnswer("openEndedAnswer", st);
+    qnFlash(document.getElementById("testQuestions"), st === "right" ? "right" : "wrong");
     fb.className = "qn-fb qn-fb-" + st;
     fb.style.display = "block";
-    fb.innerHTML = "<div class='qn-fb-head'>Score: " + data.score + "/10</div>" +
+    fb.innerHTML = "<div class='qn-fb-head'>" + qnVerdict(st) +
+      "<span style='float:right;font-weight:400;opacity:.75;'>" + data.score + "/10</span></div>" +
       "<div class='qn-fb-body'>" + qnEsc(data.feedback) + "</div>" +
       qnModelAnswer(q.model_answer);
 
@@ -350,7 +478,7 @@ function submitOpenEnded(idx) {
   .catch(function (err) {
     isSubmitting = false;
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || "Submit Answer"; }
-    alert("Could not rate answer: " + err.message);
+    qnAnswerError("openEndedFeedback", "", err.message);
   });
 }
 
@@ -368,8 +496,8 @@ function appendNextBtn(wrap) {
 
 // ── Test Results ───────────────────────────────────────────────
 function showTestResults() {
+  qnSetProgress("testProg", 0, 0);
   testCompleted = true;
-  sndComplete();
   document.getElementById("testQuestions").style.display = "none";
 
   var total = practiceQuestions.length, correct = 0, confident = 0;
@@ -379,6 +507,7 @@ function showTestResults() {
   }
 
   var pct   = total > 0 ? Math.round((correct / total) * 100) : 0;
+  sndComplete(pct);          // chime at 70%+, low note below
   var color = pct >= 80 ? "#1D9E75" : pct >= 60 ? "#854F0B" : "#A32D2D";
   var msg   = pct >= 80 ? "Great job!" : pct >= 60 ? "Good effort — keep studying!" : "Keep practicing — you will get there!";
 
@@ -550,7 +679,7 @@ function answerWeakMC(choiceIdx) {
     btns[i].disabled = true;
     // set colour too, not just background - these stay pale in dark mode,
     // so inheriting var(--text) made the label invisible
-    if (i === q.correct_index) {
+    if (i === q.correct_index) {   // eslint-disable-line
       btns[i].style.background = "#EAF3DE"; btns[i].style.borderColor = "#1D9E75";
       btns[i].style.color = "#3B6D11";
     } else if (i === choiceIdx && !correct) {
@@ -619,6 +748,12 @@ function submitWeakOpen() {
   })
   .then(function (res) { return res.json(); })
   .then(function (data) {
+    if (data.error || typeof data.score !== "number") {
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || "Submit"; }
+      qnAnswerError("weakOpenFeedback", data.reason, data.error);
+      return;
+    }
     var correct = data.score >= QN_PASS;
     weakSpotAnswers[weakSpotIndex] = { correct: correct, confident: confident, type: "open", score: data.score };
     if (correct && confident) sndCorrect(); else sndWrong();
@@ -633,8 +768,10 @@ function submitWeakOpen() {
     // answer keeps an amber box even though the answer itself reads green
     fb.className = "qn-fb " + (correct && confident ? "qn-fb-right" : correct ? "qn-fb-partial" : "qn-fb-" + st);
     fb.style.display = "block";
-    fb.innerHTML = "<div class='qn-fb-head'>Score: " + data.score + "/10" +
-      (correct && confident ? " \u2014 Mastered!" : "") + "</div>" +
+    qnFlash(document.getElementById("weakspotContent"), st === "right" ? "right" : "wrong");
+    fb.innerHTML = "<div class='qn-fb-head'>" + qnVerdict(st) +
+      (correct && confident ? " <span style='font-weight:700;'>\u2014 Mastered!</span>" : "") +
+      "<span style='float:right;font-weight:400;opacity:.75;'>" + data.score + "/10</span></div>" +
       "<div class='qn-fb-body'>" + qnEsc(data.feedback) + "</div>" +
       qnModelAnswer(q.model_answer);
 
@@ -644,7 +781,7 @@ function submitWeakOpen() {
   .catch(function (err) {
     isSubmitting = false;
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || "Submit"; }
-    alert("Could not rate answer: " + err.message);
+    qnAnswerError("weakOpenFeedback", "", err.message);
   });
 }
 

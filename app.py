@@ -918,11 +918,11 @@ def practice_test():
 @app.route("/api/rate-answer", methods=["POST"])
 def rate_answer():
     data = request.get_json()
+    import requests as req
+    SERVER_URL = "https://web-production-2b0e5.up.railway.app"
+    APP_SECRET = "octis2026secretkey"
     try:
-        import requests as req
-        SERVER_URL = "https://web-production-2b0e5.up.railway.app"
-        APP_SECRET = "octis2026secretkey"
-        response   = req.post(
+        response = req.post(
             f"{SERVER_URL}/rate-answer",
             headers={"Content-Type": "application/json", "X-Octis-Secret": APP_SECRET,
                      "X-Auth-Token": state.get("jwt_token", "")},
@@ -930,8 +930,16 @@ def rate_answer():
             timeout=30,
         )
         return jsonify(response.json())
+    except req.exceptions.Timeout:
+        # reason codes let the UI say something human instead of printing
+        # a urllib3 connection dump at the student
+        return jsonify({"error": "The server took too long to respond.",
+                        "reason": "timeout"}), 504
+    except req.exceptions.RequestException:
+        return jsonify({"error": "No internet connection.",
+                        "reason": "offline"}), 503
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "reason": ""}), 500
 
 
 @app.route("/api/stop", methods=["POST"])
