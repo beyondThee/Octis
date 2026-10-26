@@ -488,8 +488,8 @@
   .fc-item {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 16px;
+    border-radius: 10px;
+    padding: 13px 32px 13px 14px;
     margin-bottom: 10px;
     position: relative;
     transition: border-color 0.15s;
@@ -500,8 +500,8 @@
     font-size: 15px;
     font-weight: 600;
     color: var(--text);
-    line-height: 1.5;
-    margin-bottom: 6px;
+    line-height: 1.6;
+    margin-bottom: 10px;
     outline: none;
   }
 
@@ -515,7 +515,7 @@
   .fc-q:focus, .fc-a:focus {
     background: var(--blue-light);
     border-radius: 6px;
-    padding: 2px 5px;
+    padding: 1px 5px;
     margin-left: -5px;
   }
 
@@ -528,7 +528,7 @@
   .fc-del {
     position: absolute;
     top: 10px; right: 10px;
-    width: 26px; height: 26px;
+    width: 24px; height: 24px;
     border-radius: 8px;
     border: none;
     background: transparent;
@@ -543,8 +543,11 @@
   .fc-del:hover { background: #FCEBEB; color: #A32D2D; }
 
   .fc-count {
-    font-size: 12px;
-    color: var(--muted);
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--text);
     margin-bottom: 12px;
   }
 
@@ -1223,6 +1226,13 @@
   #tab-flashcards {
     max-height: 54vh;
     min-height: 240px;
+    /* .tab-content gives every tab 20px of padding, too airy for a dense list.
+       Top is near-flush; the bottom keeps room for the Add flashcard button. */
+    padding: 14px;
+    /* .tab-content sets white-space:pre-wrap for Notes/Transcript. The card
+       list is built from an indented template literal, so inheriting it made
+       every newline render as a ~25px blank line. Collapse it back. */
+    white-space: normal;
   }
 
   .tab-content.active { display: block; }
@@ -1278,7 +1288,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.1</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.2</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -1584,7 +1594,7 @@
     <div class="tab-content" id="tab-flashcards">
       <div id="cardList"></div>
       <button onclick="addBlankCard()" id="addCardBtn"
-        style="width:100%;padding:14px;margin-top:6px;background:transparent;
+        style="width:100%;padding:10px;margin-top:4px;line-height:1.2;background:transparent;
                border:1px dashed var(--border);border-radius:14px;
                font-family:'DM Sans',sans-serif;font-size:14px;color:var(--muted);
                cursor:pointer;transition:background 0.15s,color 0.15s;"
@@ -1867,16 +1877,10 @@
   }
 
   function loadCardList(text) {
-    fcCards = [];
-    let q = null;
-    (text || '').split('\n').forEach(line => {
-      const t = line.trim();
-      if (t.startsWith('Q:'))      { q = t.slice(2).trim(); }
-      else if (t.startsWith('A:') && q !== null) {
-        fcCards.push({ q: q, a: t.slice(2).trim() });
-        q = null;
-      }
-    });
+    // One parser for the list AND study mode. The old loop here required
+    // Q: and A: on separate lines, so a single-line "Q: ... / A: ..." card
+    // left the tab saying "No flashcards yet" while study mode found them.
+    fcCards = parseFlashcards(text || '').map(c => ({ q: c.q, a: c.a }));
     renderCardList();
   }
 

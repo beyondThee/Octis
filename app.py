@@ -27,6 +27,9 @@ from output_saver import OutputSaver
 import store
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
+# Re-read templates when they change on disk. Without this, Jinja caches the
+# compiled index.html at startup and edits only appear after a full restart.
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # ── Data directory setup ───────────────────────────────────────
 OCTIS_DATA_DIR = os.path.join(os.path.expanduser("~"), "Documents", "Octis")
