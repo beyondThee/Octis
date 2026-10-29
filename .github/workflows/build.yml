@@ -12,6 +12,9 @@ jobs:
 
   # ── Windows Build ─────────────────────────────────────────────
   build-windows:
+    # Only main publishes Windows releases. A manual run on another
+    # branch builds just the Mac test app.
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -99,8 +102,24 @@ jobs:
           npx electron-builder --win --publish always
 
   # ── Mac Build ─────────────────────────────────────────────────
+  # Builds an Apple Silicon (M1/M2/M3/M4) app.
+  #
+  # Signing + notarizing switch on by themselves once these repo
+  # secrets exist (Settings > Secrets and variables > Actions):
+  #   MAC_CERT_P12           base64 of the Developer ID .p12 file
+  #   MAC_CERT_PASSWORD      password of that .p12
+  #   APPLE_ID               Apple Developer account email
+  #   APPLE_APP_PASSWORD     app-specific password (account.apple.com)
+  #   APPLE_TEAM_ID          10-character Team ID
+  #
+  # The Mac app is NOT added to the release until the repo variable
+  # MAC_RELEASE is set to "true". Until then it's only a test
+  # download on the workflow run page ("Artifacts" section).
   build-mac:
     runs-on: macos-latest
+    env:
+      HAS_MAC_CERT: ${{ secrets.MAC_CERT_P12 != '' }}
+      MAC_RELEASE: ${{ vars.MAC_RELEASE == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -112,66 +131,16 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch
-
-      - name: Install ffmpeg
-        run: |
-          brew install ffmpeg
+          pip install pyinstaller flask requests certifi openai-whisper sounddevice soundfile numpy torch
 
       - name: Write config.py
         run: |
           echo "ANTHROPIC_API_KEY = ''" > config.py
 
-      - name: Create Mac PyInstaller spec
-        run: |
-          cat > app_build_mac.spec << 'EOF'
-          from PyInstaller.utils.hooks import collect_data_files
-          import subprocess
-
-          block_cipher = None
-
-          ffmpeg_path  = subprocess.check_output(['which', 'ffmpeg']).decode().strip()
-          ffprobe_path = subprocess.check_output(['which', 'ffprobe']).decode().strip()
-
-          whisper_datas = collect_data_files('whisper')
-
-          a = Analysis(
-              ['app.py'],
-              pathex=[],
-              binaries=[
-                  (ffmpeg_path,  '.'),
-                  (ffprobe_path, '.'),
-              ],
-              datas=[
-                  ('templates', 'templates'),
-                  ('static',    'static'),
-                  ('config.py', '.'),
-                  *whisper_datas,
-              ],
-              hiddenimports=['whisper'],
-              hookspath=[],
-              runtime_hooks=[],
-              excludes=[],
-              cipher=block_cipher,
-          )
-          pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-          exe = EXE(
-              pyz, a.scripts, [],
-              exclude_binaries=True,
-              name='app',
-              console=False,
-          )
-          coll = COLLECT(
-              exe, a.binaries, a.zipfiles, a.datas,
-              name='app',
-          )
-          EOF
-
       - name: Build Python backend for Mac
         run: |
           pyinstaller app_build_mac.spec --noconfirm --distpath dist_python
-          echo "Python build complete"
-          ls -la dist_python/
+          ls -la dist_python/app/
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -183,11 +152,40 @@ jobs:
           cd electron
           npm install
 
-      # electron-builder builds the DMG, generates latest-mac.yml,
-      # and uploads both to the same GitHub release.
-      - name: Build and publish Mac DMG
+      # electron-builder builds the DMG + ZIP (the ZIP is what Mac
+      # auto-update downloads) and latest-mac.yml.
+      - name: Build Mac app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           cd electron
-          npx electron-builder --mac --publish always
+          ARGS="--mac --arm64"
+
+          if [ "$HAS_MAC_CERT" = "true" ]; then
+            ARGS="$ARGS -c.mac.notarize=true"
+          else
+            echo "No signing certificate yet - building an UNSIGNED test app."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+
+          # Only publish a signed app, and only once MAC_RELEASE is on.
+          if [ "$MAC_RELEASE" = "true" ] && [ "$HAS_MAC_CERT" = "true" ]; then
+            npx electron-builder $ARGS --publish always
+          else
+            npx electron-builder $ARGS --publish never
+          fi
+
+      - name: Upload Mac test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-notes-mac
+          path: |
+            dist_electron/*.dmg
+            dist_electron/*.zip
+          retention-days: 14

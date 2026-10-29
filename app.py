@@ -1053,4 +1053,6 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
 
 # ── Launch ─────────────────────────────────────────────────────
 if __name__ == "__main__":
-    app.run(debug=False, port=5000, use_reloader=False)
+    # Electron passes the port in. Mac can't use 5000 (AirPlay has it).
+    port = int(os.environ.get("QN_PORT", "5000"))
+    app.run(debug=False, port=port, use_reloader=False)

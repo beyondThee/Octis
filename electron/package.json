@@ -41,10 +41,19 @@
       "artifactName": "Quick-Notes-Setup.${ext}"
     },
     "mac": {
-      "target": "dmg",
+      "target": ["dmg", "zip"],
       "icon": "../icon.png",
       "category": "public.app-category.education",
-      "artifactName": "Quick-Notes.${ext}"
+      "artifactName": "Quick-Notes.${ext}",
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Quick Notes uses your microphone to record lectures and turn them into notes. Audio is transcribed on your Mac and never uploaded.",
+        "NSDocumentsFolderUsageDescription": "Quick Notes saves your lectures, notes and flashcards in Documents/Octis."
+      }
     },
     "nsis": {
       "oneClick": true,

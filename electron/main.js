@@ -8,12 +8,56 @@ const { app, BrowserWindow, shell, Menu } = require('electron');
 const { spawn }                      = require('child_process');
 const path                           = require('path');
 const http                           = require('http');
+const net                            = require('net');
 const fs                             = require('fs');
 const os                             = require('os');
 const { autoUpdater }                = require('electron-updater');
 
+const IS_MAC = process.platform === 'darwin';
+
 let mainWindow   = null;
 let pythonProcess = null;
+
+// ── Backend port ──────────────────────────────────────────────
+// Windows keeps 5000. On Mac, AirPlay Receiver (macOS 12+) already
+// listens on 5000, so we'd load Apple's error page instead of ours.
+// The port must stay the same between launches: theme and sound
+// settings live in localStorage, which is tied to the exact address.
+const PREFERRED_PORT = IS_MAC ? 5179 : 5000;
+let flaskPort = PREFERRED_PORT;
+
+// Resolves true if nothing else is listening on the port.
+function isPortFree(port) {
+  return new Promise(resolve => {
+    const srv = net.createServer();
+    srv.once('error', () => resolve(false));
+    srv.once('listening', () => srv.close(() => resolve(true)));
+    srv.listen(port, '127.0.0.1');
+  });
+}
+
+// Asks the OS for any free port. Only used on Mac if the preferred
+// one is taken, so the app still opens instead of quitting.
+function getRandomFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+async function pickPort() {
+  if (!IS_MAC) return PREFERRED_PORT;
+  if (await isPortFree(PREFERRED_PORT)) return PREFERRED_PORT;
+  return getRandomFreePort();
+}
+
+function flaskUrl() {
+  return `http://127.0.0.1:${flaskPort}`;
+}
 
 // ── Update logging ────────────────────────────────────────────
 // Writes update activity to Documents/Octis/update.log so we can
@@ -61,9 +105,9 @@ function setupAutoUpdater() {
 // ── Find the Python backend ───────────────────────────────────
 function getPythonPath() {
   if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'python', 'app.exe');
+    return path.join(process.resourcesPath, 'python', IS_MAC ? 'app' : 'app.exe');
   } else {
-    return 'python';
+    return IS_MAC ? 'python3' : 'python';
   }
 }
 
@@ -90,6 +134,7 @@ function startPython() {
     cwd: workingDir,
     stdio: 'pipe',
     windowsHide: true,
+    env: { ...process.env, QN_PORT: String(flaskPort) },
   });
 
   pythonProcess.stdout.on('data', d => console.log('[Python]', d.toString()));
@@ -106,7 +151,7 @@ function waitForFlask(retries = 30, delay = 500) {
     let attempts = 0;
 
     const check = () => {
-      http.get('http://127.0.0.1:5000', res => {
+      http.get(flaskUrl(), res => {
         resolve();
       }).on('error', () => {
         attempts++;
@@ -133,7 +178,9 @@ function createWindow() {
     backgroundColor: '#F0F2F5',
     autoHideMenuBar: true,
     menuBarVisible:  false,
-    icon:            app.isPackaged
+    // Mac takes its icon from the app bundle, not the window
+    icon:            IS_MAC ? undefined
+                   : app.isPackaged
                        ? path.join(process.resourcesPath, 'icon.ico')
                        : path.join(__dirname, '..', 'icon.ico'),
     webPreferences: {
@@ -147,12 +194,13 @@ function createWindow() {
   });
 
   // Block any permission requests — Octis doesn't need location, camera, etc.
+  // (The microphone is used by the Python backend, not this window.)
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(false);
   });
 
   // Load the Flask app
-  mainWindow.loadURL('http://127.0.0.1:5000');
+  mainWindow.loadURL(flaskUrl());
 
   // Show window once loaded — prevents white flash
   mainWindow.once('ready-to-show', () => {
@@ -171,13 +219,31 @@ function createWindow() {
 }
 
 // ── App lifecycle ─────────────────────────────────────────────
+// Mac keeps Copy, Paste, Undo and Quit in the menu bar, so removing
+// the menu would break Cmd+C / Cmd+V / Cmd+Z / Cmd+Q. Windows has no
+// menu, same as before.
+function setupMenu() {
+  if (!IS_MAC) {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+  ]));
+}
+
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(null);
+  setupMenu();
   setupAutoUpdater();
+  flaskPort = await pickPort();
   startPython();
 
   try {
-    await waitForFlask();
+    // First launch on a Mac is slow: macOS security-scans every file in
+    // the bundle before the backend can start. Give it a full minute.
+    await waitForFlask(IS_MAC ? 120 : 30);
     createWindow();
   } catch (err) {
     console.error('Could not connect to Flask:', err.message);
