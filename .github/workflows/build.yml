@@ -92,14 +92,32 @@ jobs:
       # electron-builder creates the release, builds the installer,
       # generates latest.yml, and uploads ALL of it to GitHub.
       - name: Build and publish Windows installer
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd electron
           npx electron-builder --win --publish always
 
+      # Any other branch (run by hand): build a test installer only. It is
+      # never published, so no release is created and no user auto-updates.
+      - name: Build test installer (not published)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          cd electron
+          npx electron-builder --win --publish never
+
+      - name: Upload test installer
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quick-notes-test-installer
+          path: dist_electron/*.exe
+          retention-days: 14
+
   # ── Mac Build ─────────────────────────────────────────────────
   build-mac:
+    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     steps:
       - name: Checkout code

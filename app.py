@@ -19,7 +19,7 @@ import random
 import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, Response
-from recorder import Recorder
+from recorder import Recorder, _log as _rec_log
 from transcriber import Transcriber
 import requests
 from note_generator import NoteGenerator, login, verify_token, WEBSITE_URL
@@ -177,8 +177,12 @@ threading.Thread(target=_validate_session, daemon=True).start()
 # Load Whisper at startup in background
 def _load_whisper():
     state["status"] = "Loading Whisper model..."
-    state["transcriber"] = Transcriber(model_size="base")
-    state["status"] = "Ready"
+    try:
+        state["transcriber"] = Transcriber(model_size="base")
+        state["status"] = "Ready"
+    except Exception as e:
+        _rec_log(f"Whisper load failed: {e!r}")
+        state["status"] = f"Couldn't load the speech model: {e}"
 
 threading.Thread(target=_load_whisper, daemon=True).start()
 
@@ -267,11 +271,21 @@ def start_recording():
     state["pass1_segs"]   = []   # base model segments in order
     state["pass2_segs"]   = {}   # small model corrections keyed by group
     state["typing_queue"] = []   # words waiting to be typed onto screen
+    state["record_error"] = ""
 
-    recorder = Recorder()
+    recorder = Recorder(base_model=state["transcriber"].model)
     state["recorder"] = recorder
 
     def loop():
+        try:
+            _loop()
+        except Exception as e:
+            # Without this, any crash here (e.g. out of memory) silently
+            # stopped transcription while the mic stayed "in use".
+            _rec_log(f"Recording loop crashed: {e!r}")
+            state["record_error"] = str(e) or e.__class__.__name__
+
+    def _loop():
         for item in recorder.record_in_chunks(chunk_seconds=30):
             if not state["recording"]:
                 break
@@ -962,8 +976,23 @@ def stop_recording():
     def generate():
         try:
             transcript = _build_transcript().strip()
+            if not transcript and state.get("record_error"):
+                state["status"] = ("Transcription stopped with an error: "
+                                   f"{state['record_error']}. Details are in "
+                                   "Documents\\Octis\\debug.log.")
+                state["generating"] = False
+                return
             if not transcript:
-                state["status"]     = "No speech detected. Try again."
+                rec  = state.get("recorder")
+                peak = getattr(rec, "peak_level", 1.0) if rec else 1.0
+                if peak < 0.01:
+                    # The mic stream opened but delivered (near) silence:
+                    # muted mic, wrong input device, or input volume at 0.
+                    state["status"] = ("Your microphone sent silence. Check the mic "
+                                       "isn't muted and its volume is up in Windows "
+                                       "Sound settings, then try again.")
+                else:
+                    state["status"] = "No speech detected. Try again."
                 state["generating"] = False
                 return
 
