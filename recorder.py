@@ -48,6 +48,10 @@ class Recorder:
         self.stop_flag   = threading.Event()
         self._base       = None
         self._small      = None
+        # Loudest chunk seen this session. Lets the app tell "the mic sent
+        # silence" apart from "the mic heard sound but Whisper found no words".
+        self.peak_level  = 0.0
+        self._device_logged = False
 
     def _get_base(self):
         if not self._base:
@@ -70,6 +74,14 @@ class Recorder:
         try:
             device_info = sd.query_devices(kind='input')
             native_rate = int(device_info['default_samplerate'])
+            if not self._device_logged:
+                self._device_logged = True
+                try:
+                    api = sd.query_hostapis(device_info['hostapi'])['name']
+                except Exception:
+                    api = "?"
+                _log(f"Mic: {device_info['name']} | {api} | {native_rate} Hz | "
+                     f"{device_info['max_input_channels']} ch")
         except Exception as e:
             _log(f"Device query failed: {e}")
             native_rate = self.sample_rate
@@ -90,6 +102,7 @@ class Recorder:
             audio_flat = audio_data.flatten()
 
         except Exception as e:
+            _log(f"Record at native rate failed: {e}")
             # Fallback: try recording at 16000 Hz directly
             try:
                 frames     = int(self.sample_rate * chunk_seconds)
@@ -103,7 +116,8 @@ class Recorder:
                 sd.stop()
                 audio_flat  = audio_data.flatten()
                 native_rate = self.sample_rate
-            except Exception:
+            except Exception as e2:
+                _log(f"Record fallback failed: {e2}")
                 return np.zeros(self.sample_rate * chunk_seconds, dtype=np.float32)
 
         # Resample to 16000 Hz using numpy (no scipy needed)
@@ -113,6 +127,10 @@ class Recorder:
         try:
             # Skip near-silent audio without burning CPU on it
             rms = float(np.sqrt(np.mean(audio_data ** 2)))
+            peak = float(np.max(np.abs(audio_data))) if audio_data.size else 0.0
+            self.peak_level = max(self.peak_level, peak)
+            # Levels only — never lecture content
+            _log(f"Audio level: rms={rms:.5f} peak={peak:.4f}")
             if rms < 0.0001:
                 return ""
 
@@ -139,6 +157,7 @@ class Recorder:
           pass_num 2 — small model, 60s chunk, full corrected text
         """
         self.stop_flag.clear()
+        self.peak_level = 0.0
 
         audio_buffer_60s = []
         group_60s        = 0

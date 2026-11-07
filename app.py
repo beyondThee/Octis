@@ -963,7 +963,16 @@ def stop_recording():
         try:
             transcript = _build_transcript().strip()
             if not transcript:
-                state["status"]     = "No speech detected. Try again."
+                rec  = state.get("recorder")
+                peak = getattr(rec, "peak_level", 1.0) if rec else 1.0
+                if peak < 0.01:
+                    # The mic stream opened but delivered (near) silence:
+                    # muted mic, wrong input device, or input volume at 0.
+                    state["status"] = ("Your microphone sent silence. Check the mic "
+                                       "isn't muted and its volume is up in Windows "
+                                       "Sound settings, then try again.")
+                else:
+                    state["status"] = "No speech detected. Try again."
                 state["generating"] = False
                 return
 
