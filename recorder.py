@@ -43,10 +43,13 @@ def _resample(audio, from_rate, to_rate):
 
 
 class Recorder:
-    def __init__(self, sample_rate=16000):
+    def __init__(self, sample_rate=16000, base_model=None):
         self.sample_rate = sample_rate
         self.stop_flag   = threading.Event()
-        self._base       = None
+        # Reuse the base model the app already loaded at startup. Loading a
+        # second copy here, plus the small model, ran low-RAM laptops out of
+        # memory and the recording thread died with no message.
+        self._base       = base_model
         self._small      = None
         # Loudest chunk seen this session. Lets the app tell "the mic sent
         # silence" apart from "the mic heard sound but Whisper found no words".
@@ -184,7 +187,13 @@ class Recorder:
                 audio_buffer_60s = []
 
                 def do_pass2(audio=combined, g=gid):
-                    text = self._transcribe(self._get_small(), audio)
+                    try:
+                        model = self._get_small()
+                    except Exception as e:
+                        # Pass 2 is only a correction; pass 1 text stays.
+                        _log(f"Small model load failed: {e!r}")
+                        return
+                    text = self._transcribe(model, audio)
                     if text.strip():
                         revision_queue.append((2, text, g))
 
