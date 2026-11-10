@@ -469,7 +469,7 @@ def add_textbook():
             state["generating"] = True
             state["status"]     = "Combining lecture and textbook content..."
 
-            generator = NoteGenerator()
+            generator = NoteGenerator(jwt_token=state["jwt_token"])
             results   = generator.generate_with_textbook(transcript, textbook_text)
 
             new_notes      = results.get("notes", "")
@@ -974,6 +974,10 @@ def stop_recording():
                 # Never lose the lecture — save the raw transcript as "ungenerated"
                 # so the user can generate notes later from the history list.
                 _save_ungenerated(transcript, duration_mins, str(gen_err))
+                if getattr(gen_err, "reason", "") == "limit":
+                    # The server's message already says the lecture is safe
+                    # and when notes come back
+                    state["status"] = str(gen_err)
                 return
 
             output_folder = OutputSaver().save(results, transcript)

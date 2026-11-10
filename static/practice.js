@@ -149,7 +149,8 @@ function qnTestError(reason, fallback) {
     timeout: ["That took longer than expected",
       "The server did not answer in time. Give it a minute and try again."],
     access: ["Your access has ended",
-      "Renew from your account page to keep generating study material."]
+      "Renew from your account page to keep generating study material."],
+    limit:  ["Monthly limit reached", fallback || "You've reached this month's limit."]
   };
   var m  = MSG[reason] || ["Could not build the test",
                            fallback || "Something went wrong. Please try again."];
@@ -171,7 +172,8 @@ function qnAnswerError(fbId, reason, fallback) {
     timeout: ["That took longer than expected",
       "The server did not answer in time. Press Submit again in a moment."],
     access: ["Your access has ended",
-      "Renew from your account page to keep practising."]
+      "Renew from your account page to keep practising."],
+    limit:  ["Monthly limit reached", fallback || "You've reached this month's grading limit."]
   };
   var m  = MSG[reason] || ["Could not grade that answer",
                            fallback || "Nothing has been scored. Please try Submit again."];
