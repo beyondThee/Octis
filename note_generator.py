@@ -5,11 +5,14 @@ Handles authentication against quicknotesai.com
 and generates notes via the Railway server.
 """
 
+import os
 import requests
 from device_fingerprint import get_fingerprint
 
 WEBSITE_URL = "https://quicknotesai.com"
-SERVER_URL  = "https://web-production-2b0e5.up.railway.app"
+# OCTIS_SERVER_URL lets a local test point the app at a server running on
+# this computer (e.g. http://127.0.0.1:8000). Normal installs never set it.
+SERVER_URL  = os.environ.get("OCTIS_SERVER_URL", "https://web-production-2b0e5.up.railway.app").rstrip("/")
 APP_SECRET  = "octis2026secretkey"
 
 

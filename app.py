@@ -922,8 +922,7 @@ def practice_test():
 def rate_answer():
     data = request.get_json()
     import requests as req
-    SERVER_URL = "https://web-production-2b0e5.up.railway.app"
-    APP_SECRET = "octis2026secretkey"
+    from note_generator import SERVER_URL, APP_SECRET
     try:
         response = req.post(
             f"{SERVER_URL}/rate-answer",
