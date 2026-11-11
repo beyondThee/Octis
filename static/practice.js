@@ -149,7 +149,8 @@ function qnTestError(reason, fallback) {
     timeout: ["That took longer than expected",
       "The server did not answer in time. Give it a minute and try again."],
     access: ["Your access has ended",
-      "Renew from your account page to keep generating study material."]
+      "Renew from your account page to keep generating study material."],
+    limit:  ["Monthly limit reached", fallback || "You've reached this month's limit."]
   };
   var m  = MSG[reason] || ["Could not build the test",
                            fallback || "Something went wrong. Please try again."];
@@ -171,7 +172,8 @@ function qnAnswerError(fbId, reason, fallback) {
     timeout: ["That took longer than expected",
       "The server did not answer in time. Press Submit again in a moment."],
     access: ["Your access has ended",
-      "Renew from your account page to keep practising."]
+      "Renew from your account page to keep practising."],
+    limit:  ["Monthly limit reached", fallback || "You've reached this month's grading limit."]
   };
   var m  = MSG[reason] || ["Could not grade that answer",
                            fallback || "Nothing has been scored. Please try Submit again."];
@@ -249,6 +251,72 @@ function setLoading(btn) {
   btn.dataset.label = btn.textContent;
   btn.innerHTML = "<span class='qn-dots'><span></span><span></span><span></span></span>";
 }
+
+// ── Early grading ──────────────────────────────────────────────
+// Starts grading a written answer just before Submit is clicked, so the
+// feedback shows up almost instantly. Two triggers:
+//   1. The student was typing, then moves the mouse. Once per question,
+//      so a fidgety mouse can't run up the bill.
+//   2. The mouse goes onto the Submit button. Every time, so the button
+//      always feels like it's working.
+// A grade is only reused when the answer text is exactly the same, so
+// editing after an early grade just grades the new text.
+var earlyGrade = null;   // { key, promise } for the latest grade request
+var earlyArm   = null;   // the written-answer box that is live right now
+
+function gradeAnswer(q, answer) {
+  var key = q.question + "\u0000" + answer;
+  if (earlyGrade && earlyGrade.key === key) return earlyGrade.promise;
+
+  var entry = { key: key };
+  entry.promise = fetch("/api/rate-answer", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ question: q.question, answer: answer, model_answer: q.model_answer })
+  })
+  .then(function (res) { return res.json(); })
+  .then(function (data) {
+    // never hand a failed grade back later; the next try asks again
+    if ((data.error || typeof data.score !== "number") && earlyGrade === entry) earlyGrade = null;
+    return data;
+  }, function (err) {
+    if (earlyGrade === entry) earlyGrade = null;
+    throw err;
+  });
+  earlyGrade = entry;
+  return entry.promise;
+}
+
+function startEarlyGrade() {
+  if (!earlyArm || isSubmitting) return;
+  var box = document.getElementById(earlyArm.boxId);
+  var btn = document.getElementById(earlyArm.btnId);
+  if (!box || !btn || btn.disabled) return;
+  var answer = box.value.trim();
+  if (answer) gradeAnswer(earlyArm.getQ(), answer);
+}
+
+function armEarlyGrade(boxId, btnId, getQ) {
+  earlyArm = { boxId: boxId, btnId: btnId, getQ: getQ, typing: false, moveUsed: false, from: null };
+  var box = document.getElementById(boxId);
+  var btn = document.getElementById(btnId);
+  if (!box || !btn) return;
+  var arm = earlyArm;
+  box.addEventListener("input", function () { arm.typing = true; arm.from = null; });
+  btn.addEventListener("mouseenter", startEarlyGrade);
+}
+
+document.addEventListener("mousemove", function (e) {
+  var arm = earlyArm;
+  if (!arm || !arm.typing || arm.moveUsed) return;
+  // ignore tiny jitters: the mouse has to really move (about 15px)
+  if (!arm.from) { arm.from = { x: e.clientX, y: e.clientY }; return; }
+  var dx = e.clientX - arm.from.x, dy = e.clientY - arm.from.y;
+  if (dx * dx + dy * dy < 225) return;
+  arm.moveUsed = true;
+  arm.typing   = false;
+  startEarlyGrade();
+});
 
 // ── Generate Practice Test ─────────────────────────────────────
 function startPracticeTest() {
@@ -355,6 +423,10 @@ function showQuestion(idx) {
   }
 
   wrap.innerHTML = html;
+  earlyArm = null;
+  if (q.type !== "mc" && q.type !== "tf") {
+    armEarlyGrade("openEndedAnswer", "qnSubmitBtn", function () { return q; });
+  }
 }
 
 // ── Answer MC ──────────────────────────────────────────────────
@@ -442,12 +514,7 @@ function submitOpenEnded(idx) {
   var btn       = document.getElementById("qnSubmitBtn");
   setLoading(btn);
 
-  fetch("/api/rate-answer", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ question: q.question, answer: answer, model_answer: q.model_answer })
-  })
-  .then(function (res) { return res.json(); })
+  gradeAnswer(q, answer)
   .then(function (data) {
     if (data.error || typeof data.score !== "number") {
       isSubmitting = false;
@@ -662,6 +729,10 @@ function showWeakSpotQuestion() {
   }
 
   wrap.innerHTML = html;
+  earlyArm = null;
+  if (q.type !== "mc" && q.type !== "tf") {
+    armEarlyGrade("weakOpenAnswer", "qnWeakSubmitBtn", function () { return q; });
+  }
 }
 
 function answerWeakMC(choiceIdx) {
@@ -741,12 +812,7 @@ function submitWeakOpen() {
   var btn       = document.getElementById("qnWeakSubmitBtn");
   setLoading(btn);
 
-  fetch("/api/rate-answer", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ question: q.question, answer: answer, model_answer: q.model_answer })
-  })
-  .then(function (res) { return res.json(); })
+  gradeAnswer(q, answer)
   .then(function (data) {
     if (data.error || typeof data.score !== "number") {
       isSubmitting = false;

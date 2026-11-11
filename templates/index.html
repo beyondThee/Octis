@@ -1288,7 +1288,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.2</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.3</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -1903,21 +1903,22 @@
   }
 
   // Small confirmation so edits don't feel like they vanished
-  function flashSaved(msg, isError) {
+  function flashSaved(msg, isError, ms) {
     let el = document.getElementById('saveToast');
     if (!el) {
       el = document.createElement('div');
       el.id = 'saveToast';
       el.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);' +
         'padding:9px 18px;border-radius:20px;font-family:\'DM Sans\',sans-serif;font-size:13px;' +
-        'color:#fff;z-index:900;opacity:0;transition:opacity 0.25s;pointer-events:none;';
+        'color:#fff;z-index:900;opacity:0;transition:opacity 0.25s;pointer-events:none;' +
+        'max-width:90%;text-align:center;line-height:1.4;';
       document.body.appendChild(el);
     }
     el.textContent = msg;
     el.style.background = isError ? '#A32D2D' : '#1D9E75';
     el.style.opacity = '1';
     clearTimeout(window._toastTimer);
-    window._toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+    window._toastTimer = setTimeout(() => { el.style.opacity = '0'; }, ms || 1800);
   }
 
   // ── Classes ─────────────────────────────────────────────────
@@ -2557,6 +2558,11 @@
         body: JSON.stringify(body)
       });
       const data = await res.json();
+      if (data.reason === 'limit') {
+        // The session keeps going on the questions already saved
+        flashSaved(data.error + ' This session uses the questions you already have.', true, 7000);
+        return;
+      }
       if (data.error || !data.questions) return;
 
       const seen = new Set(cramPool.map(c => c.q.question));
@@ -2876,6 +2882,8 @@
           alert('No internet connection right now.\n\nYour lecture is saved safely. Just tap Generate again once you\'re back online.');
         } else if (data.reason === 'access') {
           alert('Your subscription or trial has ended.\n\nRenew to generate notes from your saved lectures.');
+        } else if (data.reason === 'limit') {
+          alert(data.error);
         } else {
           alert('Something went wrong while generating.\n\nYour lecture is still saved — please try again in a moment.');
         }
@@ -3072,11 +3080,17 @@
         clearInterval(pollTimer);
         data.results._index = -1;
         showResults(data.results);
+        flashSaved('Textbook added. Your notes and flashcards are updated.', false, 3500);
+        return;
       }
       if (!data.generating && !data.recording && !data.results) {
         clearInterval(pollTimer);
         document.getElementById('progressWrap').classList.remove('visible');
         document.getElementById('textbookSection').style.display = 'block';
+        // Nothing was added, so say why instead of quietly putting the box back
+        const why = (data.status || '').startsWith('Error:')
+          ? data.status.replace(/^Error:\s*/, '') : 'Please try again in a moment.';
+        alert('Your textbook text was not added. Your notes are unchanged.\n\n' + why);
       }
     }, 1500);
   }

@@ -469,7 +469,7 @@ def add_textbook():
             state["generating"] = True
             state["status"]     = "Combining lecture and textbook content..."
 
-            generator = NoteGenerator()
+            generator = NoteGenerator(jwt_token=state["jwt_token"])
             results   = generator.generate_with_textbook(transcript, textbook_text)
 
             new_notes      = results.get("notes", "")
@@ -922,8 +922,7 @@ def practice_test():
 def rate_answer():
     data = request.get_json()
     import requests as req
-    SERVER_URL = "https://web-production-2b0e5.up.railway.app"
-    APP_SECRET = "octis2026secretkey"
+    from note_generator import SERVER_URL, APP_SECRET
     try:
         response = req.post(
             f"{SERVER_URL}/rate-answer",
@@ -974,6 +973,10 @@ def stop_recording():
                 # Never lose the lecture — save the raw transcript as "ungenerated"
                 # so the user can generate notes later from the history list.
                 _save_ungenerated(transcript, duration_mins, str(gen_err))
+                if getattr(gen_err, "reason", "") == "limit":
+                    # The server's message already says the lecture is safe
+                    # and when notes come back
+                    state["status"] = str(gen_err)
                 return
 
             output_folder = OutputSaver().save(results, transcript)
