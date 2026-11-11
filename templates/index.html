@@ -2876,6 +2876,8 @@
           alert('No internet connection right now.\n\nYour lecture is saved safely. Just tap Generate again once you\'re back online.');
         } else if (data.reason === 'access') {
           alert('Your subscription or trial has ended.\n\nRenew to generate notes from your saved lectures.');
+        } else if (data.reason === 'limit') {
+          alert(data.error);
         } else {
           alert('Something went wrong while generating.\n\nYour lecture is still saved — please try again in a moment.');
         }
