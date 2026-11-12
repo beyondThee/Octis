@@ -14,6 +14,7 @@ The app opens automatically in your default browser.
 """
 
 import threading
+import time
 import json
 import random
 import os
@@ -24,12 +25,17 @@ from transcriber import Transcriber
 import requests
 from note_generator import NoteGenerator, login, verify_token, WEBSITE_URL
 from output_saver import OutputSaver
+import file_import
+import tempfile
+import uuid
 import store
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 # Re-read templates when they change on disk. Without this, Jinja caches the
 # compiled index.html at startup and edits only appear after a full restart.
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+# Uploaded lecture recordings can be big (a 2 hour video), but not endless.
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024
 
 # ── Data directory setup ───────────────────────────────────────
 OCTIS_DATA_DIR = os.path.join(os.path.expanduser("~"), "Documents", "Octis")
@@ -403,7 +409,12 @@ def generate_saved(index):
         return jsonify({"error": "This lecture has no transcript to generate from"}), 400
 
     try:
-        results = NoteGenerator(jwt_token=state["jwt_token"]).generate(transcript)
+        gen = NoteGenerator(jwt_token=state["jwt_token"])
+        if entry.get("source") == "document":
+            # Uploaded slides/docs count as textbook pages, not lecture hours
+            results = gen.generate_document(transcript, entry.get("doc_kind", "document"))
+        else:
+            results = gen.generate(transcript)
     except Exception as e:
         reason = getattr(e, "reason", "")
         # A raw connection failure means there's no internet — treat as offline
@@ -1015,7 +1026,7 @@ def stop_recording():
     return jsonify({"ok": True})
 
 
-def _save_ungenerated(transcript, duration_mins, reason=""):
+def _save_ungenerated(transcript, duration_mins, reason="", extra=None, name=None, folder=None, duration=None):
     """
     Save a lecture that couldn't be generated (offline, website down,
     or access blocked). The raw transcript is preserved so the user
@@ -1029,18 +1040,19 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
             "summary":    "",
             "transcript": transcript,
         }
-        output_folder = OutputSaver().save(results, transcript)
+        output_folder = OutputSaver().save(results, transcript, folder=folder)
 
-        name = f"Lecture {datetime.now().strftime('%b %d')}"
+        name = name or f"Lecture {datetime.now().strftime('%b %d')}"
         entry = {
             "name":     name,
             "date":     datetime.now().strftime("%b %d, %Y"),
-            "duration": f"{duration_mins} min",
+            "duration": duration or f"{duration_mins} min",
             "folder":   output_folder,
             "status":     "ungenerated",
             "email":      (state.get("email") or "").strip().lower(),
             "started_at": state.get("started_at", ""),
             "class_id":   None,
+            **(extra or {}),
         }
         history = load_history()
         history.append(entry)
@@ -1052,6 +1064,204 @@ def _save_ungenerated(transcript, duration_mins, reason=""):
     except Exception as e:
         state["status"]     = f"Error saving lecture: {e}"
         state["generating"] = False
+
+
+# ── Upload a file (slides, docs, PDFs, audio) ──────────────────
+def _new_lecture_folder():
+    """A fresh folder for an upload. Uses seconds plus a random tag so two
+    uploads in the same minute never overwrite each other."""
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return os.path.join(OutputSaver().base_folder,
+                        f"lecture_{stamp}_{uuid.uuid4().hex[:4]}")
+
+
+@app.route("/api/upload/types")
+def upload_types():
+    """The file picker's accept list, so the HTML never drifts from Python."""
+    return jsonify({"accept": ",".join(file_import.ALL_TYPES)})
+
+
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    if state["recording"] or state["generating"]:
+        return jsonify({"error": "Please wait until the current lecture is finished."}), 409
+    if not state.get("jwt_token"):
+        return jsonify({"error": "Please log in first."}), 401
+
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "No file was chosen."}), 400
+
+    filename = os.path.basename(f.filename)
+    try:
+        kind = file_import.file_kind(filename)
+    except file_import.ImportError_ as e:
+        return jsonify({"error": str(e)}), 400
+
+    if kind == "audio" and state["transcriber"] is None:
+        return jsonify({"error": "Whisper is still loading, please wait a moment and try again."}), 503
+
+    # Save to a temp file first. The original stays where the student keeps it.
+    tmp_dir = os.path.join(OCTIS_DATA_DIR, "upload_tmp")
+    os.makedirs(tmp_dir, exist_ok=True)
+    ext      = os.path.splitext(filename)[1].lower()
+    fd, tmp_path = tempfile.mkstemp(suffix=ext, dir=tmp_dir)
+    os.close(fd)
+    f.save(tmp_path)
+
+    state["generating"] = True
+    state["results"]    = None
+    state["started_at"] = datetime.now().isoformat(timespec="seconds")
+    state["status"]     = "Reading your file..."
+    jwt   = state["jwt_token"]
+    email = (state.get("email") or "").strip().lower()
+
+    def work():
+        try:
+            _process_upload(tmp_path, filename, kind, jwt, email)
+        except file_import.ImportError_ as e:
+            state["status"]     = f"Error: {e}"
+            state["generating"] = False
+        except Exception as e:
+            state["status"]     = f"Error: {e}"
+            state["generating"] = False
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    threading.Thread(target=work, daemon=True).start()
+    return jsonify({"ok": True, "kind": kind})
+
+
+RETRY_WAITS = (5, 15, 30)          # quick retries, in seconds, before giving up
+
+
+def _generate_with_retries(generate):
+    """Calls the AI server, retrying a few times if the connection dropped.
+    Limit and access errors are not retried: trying again won't help."""
+    for attempt, wait in enumerate((0,) + RETRY_WAITS):
+        if wait:
+            state["status"] = (f"Couldn't reach the Quick Notes server. "
+                               f"Trying again in {wait} seconds...")
+            time.sleep(wait)
+            state["status"] = "Generating your study materials..."
+        try:
+            return generate()
+        except Exception as e:
+            if getattr(e, "reason", "") not in ("offline", "timeout") \
+                    or attempt == len(RETRY_WAITS):
+                raise
+
+
+def _keep_trying(folder, generate, every=120, tries=30):
+    """Background retry for an upload saved as 'not generated' because the
+    server couldn't be reached. Tries every 2 minutes for an hour."""
+    for _ in range(tries):
+        time.sleep(every)
+        history = load_history()
+        idx = next((i for i, e in enumerate(history) if e.get("folder") == folder), None)
+        if idx is None or history[idx].get("status") != "ungenerated":
+            return                          # deleted, or the student generated it
+        try:
+            results = generate()
+        except Exception as e:
+            if getattr(e, "reason", "") in ("offline", "timeout"):
+                continue
+            return                          # limit or access problem: stop
+        transcript = _read_saved_transcript(folder)
+        OutputSaver().save(results, transcript, folder=folder)
+        history = load_history()            # re-read: it may have changed
+        idx = next((i for i, e in enumerate(history) if e.get("folder") == folder), None)
+        if idx is None:
+            return
+        entry = history[idx]
+        entry["name"]   = results.get("title", "").strip() or entry.get("name", "Lecture")
+        entry["status"] = "generated"
+        history[idx] = entry
+        save_history(history)
+        return
+
+
+def _read_saved_transcript(folder):
+    try:
+        with open(os.path.join(folder, "transcript.txt"), "r", encoding="utf-8") as f:
+            lines = f.read().split("\n")
+        return "\n".join(lines[2:]).strip()
+    except OSError:
+        return ""
+
+
+def _process_upload(path, filename, kind, jwt, email):
+    folder = _new_lecture_folder()
+    extra  = {"source": kind, "filename": filename}
+
+    if kind == "audio":
+        def progress(done, total):
+            state["status"] = (f"Turning your audio into text on this computer: "
+                               f"{done} of {total} min done...")
+        state["status"] = "Turning your audio into text on this computer..."
+        text, minutes   = file_import.transcribe_audio(
+            path, state["transcriber"].model, on_progress=progress)
+        duration = f"{minutes} min"
+        state["status"] = "Generating your study materials..."
+        generate = lambda: NoteGenerator(jwt_token=jwt).generate(text)
+    else:
+        text      = file_import.extract_text(path, filename)
+        doc_kind  = file_import.doc_label(filename)
+        pages     = max(1, -(-len(text) // 3000))       # same count as the server
+        duration  = f"{pages} page" + ("s" if pages != 1 else "")
+        extra["doc_kind"] = doc_kind
+        state["status"]   = f"Generating your study materials from {pages} " \
+                            f"page{'s' if pages != 1 else ''}..."
+        generate = lambda: NoteGenerator(jwt_token=jwt).generate_document(text, doc_kind)
+
+    try:
+        results = _generate_with_retries(generate)
+    except Exception as gen_err:
+        reason = getattr(gen_err, "reason", "")
+        if kind == "document" and reason == "limit":
+            # Too many pages, or out of pages this month. Nothing to keep.
+            state["status"]     = f"Error: {gen_err}"
+            state["generating"] = False
+            return
+        # Never lose a transcribed recording: save it, and if it was only a
+        # connection problem, keep trying in the background so the student
+        # doesn't have to press Generate themselves.
+        _save_ungenerated(text, 0, str(gen_err), extra=extra,
+                          folder=folder, duration=duration)
+        if reason == "limit":
+            state["status"] = str(gen_err)
+        elif reason in ("offline", "timeout"):
+            state["status"] = ("Saved. Quick Notes can't reach its server right now, so it "
+                               "will keep trying for the next hour and make your notes "
+                               "as soon as it connects.")
+            threading.Thread(target=_keep_trying, args=(folder, generate),
+                             daemon=True).start()
+        return
+
+    OutputSaver().save(results, text, folder=folder)
+    results["transcript"] = text
+
+    entry = {
+        "name":       results.get("title", "").strip() or f"Lecture {datetime.now().strftime('%b %d')}",
+        "date":       datetime.now().strftime("%b %d, %Y"),
+        "duration":   duration,
+        "folder":     folder,
+        "status":     "generated",
+        "email":      email,
+        "started_at": state.get("started_at", ""),
+        "class_id":   None,
+        **extra,
+    }
+    history = load_history()
+    history.append(entry)
+    save_history(history)
+
+    state["results"]    = {**results, "entry": entry}
+    state["generating"] = False
+    state["status"]     = "Done!"
 
 
 # ── Launch ─────────────────────────────────────────────────────
