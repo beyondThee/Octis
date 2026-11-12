@@ -144,8 +144,11 @@ class NoteGenerator:
                 timeout=timeout,
             )
         except requests.exceptions.Timeout:
+            print(f"[server] {path} timed out after {timeout}s", flush=True)
             raise GenerateError("The server took too long to respond.", "timeout")
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            # The real reason only goes to the console, for debugging
+            print(f"[server] {path} could not connect: {e!r}", flush=True)
             raise GenerateError("No internet connection.", "offline")
         return self._handle(response)
 
@@ -161,6 +164,10 @@ class NoteGenerator:
         Returns {"questions": [...]}.
         """
         return self._post("/cram", {"lectures": lectures, "count": count}, 180)
+
+    def generate_document(self, text, kind="document"):
+        """Notes from uploaded slides/docs. Counts as textbook pages."""
+        return self._post("/document", {"text": text, "kind": kind}, 120)
 
     def generate_with_textbook(self, transcript, textbook_text):
         return self._post("/textbook",

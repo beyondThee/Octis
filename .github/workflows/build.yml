@@ -24,7 +24,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch
+          pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch python-pptx python-docx pypdf
 
       - name: Install ffmpeg and update spec paths
         shell: powershell
@@ -112,7 +112,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch
+          pip install pyinstaller flask requests openai-whisper sounddevice soundfile numpy torch python-pptx python-docx pypdf
 
       - name: Install ffmpeg
         run: |

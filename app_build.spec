@@ -12,6 +12,8 @@ FFMPEG_BIN  = r'C:\Users\MJ\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_
 FFPROBE_BIN = r'C:\Users\MJ\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin\ffprobe.exe'
 
 whisper_datas = collect_data_files('whisper')
+# Templates python-pptx / python-docx ship with (used for file uploads)
+office_datas  = collect_data_files('pptx') + collect_data_files('docx')
 
 a = Analysis(
     ['app.py'],
@@ -25,6 +27,7 @@ a = Analysis(
         ('static',    'static'),
         ('config.py', '.'),
         *whisper_datas,
+        *office_datas,
     ],
     hiddenimports=[
         'flask',
@@ -37,6 +40,13 @@ a = Analysis(
         'tiktoken',
         'tiktoken_ext',
         'tiktoken_ext.openai_public',
+        # File uploads: slides, Word docs, PDFs
+        'file_import',
+        'pptx',
+        'docx',
+        'pypdf',
+        'lxml',
+        'PIL',
     ],
     hookspath=[],
     runtime_hooks=['hook_ffmpeg.py'],

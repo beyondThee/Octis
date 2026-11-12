@@ -965,6 +965,28 @@
     color: rgba(255,255,255,0.65);
   }
 
+  /* ── Upload a file ───────────────────────────────────────── */
+  .upload-btn {
+    margin-top: 14px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .upload-btn:hover { background: rgba(255,255,255,0.24); }
+  .upload-hint {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.65);
+  }
+  .record-card.recording .upload-btn, .record-card.recording .upload-hint,
+  .record-card.paused .upload-btn,    .record-card.paused .upload-hint { display: none; }
+
   /* ── Progress bar ─────────────────────────────────────────── */
   .progress-wrap {
     height: 4px;
@@ -1383,6 +1405,11 @@
       </div>
 
       <div class="tap-label" id="tapLabel">TAP TO START RECORDING</div>
+
+      <!-- Or make notes from a file the student already has -->
+      <button class="upload-btn" id="uploadBtn" onclick="onUploadClick()">📄 Or upload a file</button>
+      <div class="upload-hint" id="uploadHint">Slides, Word, PDF or audio</div>
+      <input type="file" id="uploadInput" style="display:none" onchange="onUploadPicked(this)">
       </div>
 
       <!-- Classes, inside the card -->
@@ -3015,6 +3042,7 @@
     document.getElementById('tapLabel').textContent     = 'PLEASE WAIT';
     document.getElementById('micBtn').style.display     = 'none';
     document.getElementById('micBtn').classList.add('generating');
+    showUploadButton(false);
 
     document.getElementById('progressWrap').classList.add('visible');
 
@@ -3053,6 +3081,91 @@
       }
 
     }, 1500);
+  }
+
+  // ── Upload a file ────────────────────────────────────────────
+  // Slides, Word docs and PDFs are read on this computer and only the
+  // text is sent. Audio is turned into text by Whisper on this computer.
+  function showUploadButton(show) {
+    document.getElementById('uploadBtn').style.display  = show ? '' : 'none';
+    document.getElementById('uploadHint').style.display = show ? '' : 'none';
+  }
+
+  async function onUploadClick() {
+    if (isRecording) return;
+    const input = document.getElementById('uploadInput');
+    if (!input.accept) {
+      try {
+        const r = await fetch('/api/upload/types');
+        input.accept = (await r.json()).accept;
+      } catch (e) { /* picker just shows all files */ }
+    }
+    input.value = '';
+    input.click();
+  }
+
+  async function onUploadPicked(input) {
+    const file = input.files && input.files[0];
+    if (!file || isRecording) return;
+
+    const isAudio = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|wma|webm|mp4|mov|mkv)$/i.test(file.name);
+    document.getElementById('cardTitle').textContent    = isAudio ? 'Listening to your audio…' : 'Reading your file…';
+    document.getElementById('cardSubtitle').textContent = isAudio
+      ? 'Long recordings can take a while. You can leave this open.'
+      : file.name;
+    document.getElementById('tapLabel').textContent     = 'PLEASE WAIT';
+    document.getElementById('micBtn').style.display     = 'none';
+    showUploadButton(false);
+    document.getElementById('progressWrap').classList.add('visible');
+    document.getElementById('statusText').textContent   = 'Uploading…';
+
+    const form = new FormData();
+    form.append('file', file);
+    let data = {};
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+    } catch (e) {
+      uploadFailed(e.message);
+      return;
+    }
+
+    let pollCount = 0;
+    pollTimer = setInterval(async () => {
+      pollCount++;
+      let s;
+      try { s = await (await fetch('/api/status')).json(); } catch (e) { return; }
+      if (s.status) document.getElementById('statusText').textContent = s.status;
+
+      if (s.results) {
+        clearInterval(pollTimer);
+        s.results._index = -1;
+        document.getElementById('statusText').textContent = '';
+        resetCard();
+        showResults(s.results);
+        return;
+      }
+      if (pollCount > 1 && !s.generating) {
+        clearInterval(pollTimer);
+        const msg = s.status || '';
+        if (msg.startsWith('Error:')) {
+          uploadFailed(msg.replace(/^Error:\s*/, ''));
+        } else {
+          // Saved without notes (offline or out of hours): show why, keep it in the list
+          document.getElementById('statusText').textContent = '';
+          resetCard();
+          loadHistory();
+          if (msg) alert(msg);
+        }
+      }
+    }, 1500);
+  }
+
+  function uploadFailed(message) {
+    document.getElementById('statusText').textContent = '';
+    resetCard();
+    alert('That file could not be added.\n\n' + (message || 'Please try again.'));
   }
 
   // ── Textbook integration ─────────────────────────────────────
@@ -3209,6 +3322,7 @@
     document.getElementById('transcriptSection').classList.remove('visible');
     document.getElementById('historySection').style.display = '';
     document.getElementById('progressWrap').classList.remove('visible');
+    showUploadButton(true);
     isRecording = false;
     isPaused    = false;
   }
