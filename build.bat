@@ -12,8 +12,8 @@ echo.
 
 :: ── Step 1: Build Python backend into exe ─────────────────────
 echo  [1/4] Building Python backend...
-pip install pyinstaller --quiet
-pyinstaller app_build.spec --noconfirm --distpath dist_python
+call pip install pyinstaller --quiet
+call pyinstaller app_build.spec --noconfirm --distpath dist_python
 if errorlevel 1 (
     echo  ERROR: Python build failed.
     pause & exit /b 1
@@ -24,7 +24,7 @@ echo.
 :: ── Step 2: Install Electron dependencies ─────────────────────
 echo  [2/4] Installing Electron dependencies...
 cd electron
-npm install --silent
+call npm install --silent
 if errorlevel 1 (
     echo  ERROR: npm install failed.
     pause & exit /b 1
@@ -34,7 +34,7 @@ echo.
 
 :: ── Step 3: Build Electron app ────────────────────────────────
 echo  [3/4] Building Electron app...
-npm run build-win
+call npm run build-win
 if errorlevel 1 (
     echo  ERROR: Electron build failed.
     pause & exit /b 1
@@ -48,7 +48,7 @@ echo   BUILD COMPLETE!
 echo  ===================================
 echo.
 echo  Your installer is in:
-echo    dist_electron\StudyCompanion Setup.exe
+echo    dist_electron\Quick-Notes-Setup.exe
 echo.
 echo  Students just run that one installer file.
 echo  Nothing else needed!
