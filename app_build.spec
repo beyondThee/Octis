@@ -66,7 +66,12 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=False,
+    # console=True on purpose: with console=False, PyInstaller shows a raw
+    # "Unhandled exception in script" popup whenever the backend crashes
+    # (e.g. opened mid-update). Electron starts app.exe hidden
+    # (windowsHide), so no console window appears; errors go to Electron,
+    # which shows a friendly message and logs details to update.log.
+    console=True,
     windowsHide=True,   # never show a window
 )
 
