@@ -4,7 +4,7 @@
  * Electron entry point for Octis.
  */
 
-const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog, powerMonitor } = require('electron');
 const { spawn, execFile, execFileSync } = require('child_process');
 const path                           = require('path');
 const http                           = require('http');
@@ -121,6 +121,31 @@ function setupAutoUpdater() {
     updateLog('UPDATE ERROR: ' + (err ? err.message : 'unknown'));
   });
 
+  checkForUpdatesNow();
+
+  // Students often leave the app open for days and just close the
+  // laptop lid. Without these, we'd only ever check at launch.
+  // 1) Check again every 4 hours while the app is open.
+  setInterval(checkForUpdatesNow, 4 * 60 * 60 * 1000);
+  // 2) Check when the laptop wakes up from sleep (lid opened).
+  powerMonitor.on('resume', () => {
+    updateLog('Computer woke up — checking for updates');
+    // Give Wi-Fi a moment to reconnect first.
+    setTimeout(checkForUpdatesNow, 30 * 1000);
+  });
+}
+
+function checkForUpdatesNow() {
+  // Already downloaded and waiting? No need to check again.
+  if (pendingUpdate) {
+    // If they picked "Later" a while ago, remind them once more on
+    // the next check (at most every 4 hours / on wake).
+    if (mainWindow && mainWindow.isVisible()) {
+      updatePromptShown = false;
+      promptToInstallUpdate();
+    }
+    return;
+  }
   autoUpdater.checkForUpdates().catch((err) => {
     updateLog('checkForUpdates threw: ' + (err ? err.message : 'unknown'));
   });
