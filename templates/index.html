@@ -871,6 +871,8 @@
     text-align: left;
   }
   .chip-menu button:hover { background: var(--blue-light); }
+  .chip-menu button.current { font-weight: 600; }
+  .chip-menu .chip-check { margin-left: auto; opacity: 0.7; }
 
   /* ── Bubble visualizer ────────────────────────────────────
      Fills the whole card and rises behind the content.          */
@@ -1310,7 +1312,7 @@
   <div class="nav-logo">
     <img src="/static/icon.png" style="width:32px;height:32px;border-radius:10px;object-fit:cover;" alt="Octis"/>
   </div>
-  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.5</span></span>
+  <span class="nav-title">Quick Notes <span id="versionLabel" style="font-size:11px;font-weight:400;color:var(--muted);vertical-align:middle;transition:opacity 0.3s;">v1.3.6</span></span>
 
   <!-- Signed-in account + logout -->
   <span id="accountEmail" style="display:none;"></span>
@@ -2074,19 +2076,23 @@
   }
 
   // Chip menu for assigning a lecture to a class
-  function openChipMenu(ev, index) {
+  // Clicking the class a lecture already has removes it (unassigns).
+  function openChipMenu(ev, index, currentId) {
     ev.stopPropagation();
     document.querySelectorAll('.chip-menu').forEach(m => m.remove());
 
     const menu = document.createElement('div');
     menu.className = 'chip-menu';
-    menu.innerHTML = myClasses.map(c => `
-      <button onclick="assignClass(${index}, '${c.id}')">
+    menu.innerHTML = myClasses.map(c => {
+      const isCurrent = c.id === currentId;
+      const target = isCurrent ? 'null' : `'${c.id}'`;
+      return `
+      <button class="${isCurrent ? 'current' : ''}" onclick="assignClass(${index}, ${target})"
+              ${isCurrent ? 'title="Click to remove class"' : ''}>
         <span class="class-dot" style="background:${c.displayColor || c.color}"></span>${escapeHtml(c.name)}
-      </button>`).join('')
-      + `<button onclick="assignClass(${index}, null)">
-           <span class="class-dot" style="background:var(--border)"></span>No class
-         </button>`;
+        ${isCurrent ? '<span class="chip-check">✓</span>' : ''}
+      </button>`;
+    }).join('');
 
     const r = ev.currentTarget.getBoundingClientRect();
     menu.style.top  = (r.bottom + window.scrollY + 6) + 'px';
@@ -2872,7 +2878,7 @@
       const col  = cls ? (cls.displayColor || cls.color) : null;
       const chip = cls
         ? `<span class="lecture-chip" style="background:${col}22;color:${col}"
-             onclick="openChipMenu(event, ${realIndex})">
+             onclick="openChipMenu(event, ${realIndex}, '${cls.id}')">
              <span class="class-dot" style="background:${col}"></span>${escapeHtml(cls.name)}
            </span>`
         : `<span class="lecture-chip unassigned"
