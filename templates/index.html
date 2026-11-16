@@ -2990,9 +2990,12 @@
     window._typingSource = new EventSource('/api/words');
     window._typingSource.onmessage = (e) => {
       const p = document.getElementById('transcriptText');
-      p.textContent += (p.textContent ? ' ' : '') + e.data;
       const box = document.getElementById('transcriptSection');
-      box.scrollTop = box.scrollHeight;
+      // Only follow new text if the user is already at (or near) the bottom.
+      // If they scrolled up to re-read something, leave them where they are.
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      p.textContent += (p.textContent ? ' ' : '') + e.data;
+      if (nearBottom) box.scrollTop = box.scrollHeight;
     };
     window._typingSource.onerror = () => {
       window._typingSource.close();
