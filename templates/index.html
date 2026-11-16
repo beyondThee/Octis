@@ -1029,26 +1029,110 @@
   }
 
   /* ── Transcript box ───────────────────────────────────────── */
+  /* The box is a column: search bar on top (always visible), text
+     underneath scrolls on its own. */
   .transcript-section {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 22px 26px;
     margin-bottom: 20px;
     max-height: 46vh;
-    overflow-y: auto;
     display: none;
+    flex-direction: column;
+    overflow: hidden;
     transition: background var(--transition), border-color var(--transition);
   }
 
-  .transcript-section.visible { display: block; }
+  .transcript-section.visible { display: flex; }
 
-  .transcript-section p {
+  .transcript-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .transcript-search-icon { color: var(--muted); font-size: 15px; }
+
+  .transcript-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+  }
+
+  .transcript-search input::placeholder { color: var(--muted); }
+
+  .transcript-search-count {
+    font-size: 13px;
+    color: var(--text-sub);
+    white-space: nowrap;
+  }
+
+  .transcript-search button {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-sub);
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+    cursor: pointer;
+    display: none;
+  }
+
+  .transcript-search button:hover { background: var(--blue-light); color: var(--blue); }
+
+  .transcript-search.has-query button { display: inline-block; }
+
+  .transcript-scroll {
+    overflow-y: auto;
+    padding: 18px 26px 22px;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .transcript-scroll p {
     font-family: 'DM Sans', sans-serif;
     font-size: 20px;
     color: var(--text);
     line-height: 1.75;
+    margin: 0 0 18px;
     transition: color var(--transition);
+  }
+
+  .transcript-scroll p:last-child { margin-bottom: 0; }
+
+  .transcript-time {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-sub);
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 1px 7px;
+    margin-right: 8px;
+    vertical-align: 3px;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+
+  .transcript-scroll mark {
+    background: #FFE58A;
+    color: #1A1A2E;
+    border-radius: 3px;
+    padding: 0 1px;
+  }
+
+  .transcript-scroll mark.current {
+    background: #FF9F43;
+    outline: 2px solid #FF9F43;
   }
 
   /* ── History section ──────────────────────────────────────── */
@@ -1435,7 +1519,16 @@
 
     <!-- Transcript -->
     <div class="transcript-section" id="transcriptSection">
-      <p id="transcriptText"></p>
+      <div class="transcript-search" id="transcriptSearch">
+        <span class="transcript-search-icon">&#128269;</span>
+        <input id="transcriptSearchInput" type="text" placeholder="Search the transcript" autocomplete="off" spellcheck="false"
+          oninput="transcriptSearch.run()" onkeydown="transcriptSearch.onKey(event)"/>
+        <span class="transcript-search-count" id="transcriptSearchCount"></span>
+        <button type="button" title="Previous match (Shift+Enter)" onclick="transcriptSearch.step(-1)">&#8593;</button>
+        <button type="button" title="Next match (Enter)" onclick="transcriptSearch.step(1)">&#8595;</button>
+        <button type="button" title="Clear search (Esc)" onclick="transcriptSearch.clear()">&#10005;</button>
+      </div>
+      <div class="transcript-scroll" id="transcriptScroll"></div>
     </div>
 
     <!-- Settings -->
@@ -2981,7 +3074,7 @@
     // Hide history, show transcript
     document.getElementById('historySection').style.display  = 'none';
     document.getElementById('transcriptSection').classList.add('visible');
-    document.getElementById('transcriptText').textContent    = '';
+    liveTranscript.reset();
 
     // ── SSE stream for smooth word-by-word typing ─────────────
     if (window._typingSource) {
@@ -2989,19 +3082,168 @@
     }
     window._typingSource = new EventSource('/api/words');
     window._typingSource.onmessage = (e) => {
-      const p = document.getElementById('transcriptText');
-      const box = document.getElementById('transcriptSection');
-      // Only follow new text if the user is already at (or near) the bottom.
-      // If they scrolled up to re-read something, leave them where they are.
-      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-      p.textContent += (p.textContent ? ' ' : '') + e.data;
-      if (nearBottom) box.scrollTop = box.scrollHeight;
+      let msg;
+      try { msg = JSON.parse(e.data); } catch (_) { msg = { w: e.data }; }
+      if (msg.p !== undefined) liveTranscript.newParagraph(msg.p);
+      else if (msg.w)          liveTranscript.addWord(msg.w);
     };
     window._typingSource.onerror = () => {
       window._typingSource.close();
     };
     // Note: polling starts only after stop is clicked, not here
   }
+
+  // ── Live transcript: paragraphs + search ─────────────────────
+  // The server sends {"p": "12:30"} when the speaker pauses 2+ seconds
+  // (start a new paragraph with that time) and {"w": "word"} for words.
+  const liveTranscript = {
+    paras: [],   // [{ textEl, text }]
+
+    box() { return document.getElementById('transcriptScroll'); },
+
+    reset() {
+      this.paras = [];
+      this.box().innerHTML = '';
+      transcriptSearch.clear(true);
+    },
+
+    // Only follow new text if the user is already at (or near) the bottom
+    // and isn't searching. If they scrolled up to re-read something, or
+    // jumped to a search match, leave them where they are.
+    _shouldFollow() {
+      const box = this.box();
+      const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      return nearBottom && !transcriptSearch.active();
+    },
+
+    newParagraph(time) {
+      const follow = this._shouldFollow();
+      const p = document.createElement('p');
+      if (time) {
+        const t = document.createElement('span');
+        t.className = 'transcript-time';
+        t.textContent = time;
+        p.appendChild(t);
+      }
+      const textEl = document.createElement('span');
+      p.appendChild(textEl);
+      this.box().appendChild(p);
+      this.paras.push({ textEl, text: '' });
+      if (follow) this.box().scrollTop = this.box().scrollHeight;
+    },
+
+    addWord(word) {
+      if (!this.paras.length) this.newParagraph('');
+      const follow = this._shouldFollow();
+      const para = this.paras[this.paras.length - 1];
+      const piece = (para.text ? ' ' : '') + word;
+      para.text += piece;
+      if (transcriptSearch.active()) {
+        // Re-highlight just this paragraph so new matches light up live
+        transcriptSearch.paint(para);
+        transcriptSearch.collect(false);
+      } else {
+        para.textEl.appendChild(document.createTextNode(piece));
+      }
+      if (follow) this.box().scrollTop = this.box().scrollHeight;
+    },
+  };
+
+  // Works like Ctrl+F, but only inside the live transcript box.
+  const transcriptSearch = {
+    query: '',
+    marks: [],
+    index: -1,
+
+    input() { return document.getElementById('transcriptSearchInput'); },
+    active() { return this.query.length > 0; },
+
+    _regex() {
+      const safe = this.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(safe, 'gi');
+    },
+
+    _escape(text) {
+      return text.replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    },
+
+    // Redraw one paragraph with <mark> around each match
+    paint(para) {
+      if (!this.active()) { para.textEl.textContent = para.text; return; }
+      const re = this._regex();
+      let html = '', last = 0, m;
+      while ((m = re.exec(para.text)) !== null) {
+        html += this._escape(para.text.slice(last, m.index))
+              + '<mark>' + this._escape(m[0]) + '</mark>';
+        last = m.index + m[0].length;
+      }
+      para.textEl.innerHTML = html + this._escape(para.text.slice(last));
+    },
+
+    // Gather all marks; optionally jump to the first one
+    collect(jump) {
+      this.marks = Array.from(document.querySelectorAll('#transcriptScroll mark'));
+      if (!this.marks.length) this.index = -1;
+      else if (jump || this.index < 0) this.index = 0;
+      else this.index = Math.min(this.index, this.marks.length - 1);
+      this._showCurrent(jump);
+    },
+
+    _showCurrent(scroll) {
+      this.marks.forEach((m, i) => m.classList.toggle('current', i === this.index));
+      const count = document.getElementById('transcriptSearchCount');
+      if (!this.active())          count.textContent = '';
+      else if (!this.marks.length) count.textContent = 'No matches';
+      else                         count.textContent = (this.index + 1) + ' of ' + this.marks.length;
+      if (scroll && this.index >= 0) {
+        const box  = liveTranscript.box();
+        const mark = this.marks[this.index];
+        const top  = mark.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+        box.scrollTop = Math.max(0, top - box.clientHeight / 2);
+      }
+    },
+
+    run() {
+      this.query = this.input().value.trim();
+      document.getElementById('transcriptSearch').classList.toggle('has-query', this.active());
+      liveTranscript.paras.forEach(p => this.paint(p));
+      this.collect(true);
+    },
+
+    step(dir) {
+      if (!this.marks.length) return;
+      this.index = (this.index + dir + this.marks.length) % this.marks.length;
+      this._showCurrent(true);
+    },
+
+    // Clearing the search goes back to following the live text
+    clear(silent) {
+      this.input().value = '';
+      this.run();
+      if (!silent) {
+        const box = liveTranscript.box();
+        box.scrollTop = box.scrollHeight;
+        this.input().blur();
+      }
+    },
+
+    onKey(ev) {
+      if (ev.key === 'Enter')  { ev.preventDefault(); this.step(ev.shiftKey ? -1 : 1); }
+      if (ev.key === 'Escape') { ev.preventDefault(); this.clear(); }
+    },
+  };
+
+  // Ctrl+F while recording jumps into the transcript search box
+  document.addEventListener('keydown', ev => {
+    if (!(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== 'f') return;
+    if (!document.getElementById('transcriptSection').classList.contains('visible')) return;
+    ev.preventDefault();
+    const input = transcriptSearch.input();
+    input.focus();
+    input.select();
+  });
 
   // ── Pause ────────────────────────────────────────────────────
   async function onPause() {

@@ -13,6 +13,7 @@ import sounddevice as sd
 import soundfile as sf
 import tempfile
 import threading
+import time
 import os
 import numpy as np
 from datetime import datetime
@@ -27,6 +28,31 @@ def _log(msg):
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
     except Exception:
         pass
+
+
+def _timed_words(result):
+    """
+    Pulls (start, end, word) out of a Whisper result. Uses per-word times
+    when Whisper gave them, otherwise spreads each segment's words evenly
+    across that segment so we still get rough timings.
+    """
+    out = []
+    for seg in result.get("segments", []):
+        words = seg.get("words")
+        if words:
+            for w in words:
+                word = w.get("word", "").strip()
+                if word:
+                    out.append((float(w["start"]), float(w["end"]), word))
+            continue
+        parts = seg.get("text", "").split()
+        if not parts:
+            continue
+        start, end = float(seg["start"]), float(seg["end"])
+        step = (end - start) / len(parts)
+        for i, word in enumerate(parts):
+            out.append((start + i * step, start + (i + 1) * step, word))
+    return out
 
 
 def _resample(audio, from_rate, to_rate):
@@ -48,6 +74,7 @@ class Recorder:
         self.stop_flag   = threading.Event()
         self._base       = None
         self._small      = None
+        self._word_times_broken = False
 
     def _get_base(self):
         if not self._base:
@@ -109,34 +136,60 @@ class Recorder:
         # Resample to 16000 Hz using numpy (no scipy needed)
         return _resample(audio_flat, native_rate, self.sample_rate)
 
-    def _transcribe(self, model, audio_data):
+    def _transcribe(self, model, audio_data, timed=False):
+        """
+        Returns the text. With timed=True returns (text, words) instead,
+        where words is a list of (start_sec, end_sec, word) measured from
+        the start of this audio. The live transcript uses those times to
+        start a new paragraph when the speaker pauses.
+        """
+        empty = ("", []) if timed else ""
         try:
             # Skip near-silent audio without burning CPU on it
             rms = float(np.sqrt(np.mean(audio_data ** 2)))
             if rms < 0.0001:
-                return ""
+                return empty
 
             # Pass numpy array directly to Whisper — bypasses ffmpeg entirely
             audio_input = audio_data.astype(np.float32)
 
-            result = model.transcribe(
-                audio_input,
+            options = dict(
                 fp16=False,
                 language="en",
                 no_speech_threshold=0.3,
                 logprob_threshold=-2.0,
             )
-            return result["text"].strip()
+            result = None
+            if timed and not self._word_times_broken:
+                try:
+                    result = model.transcribe(audio_input, word_timestamps=True, **options)
+                except Exception as e:
+                    # Word timings need extra pieces (numba) that could be
+                    # missing in a packaged build. Never lose the lecture
+                    # over it: switch them off and transcribe normally.
+                    # Paragraphs then use rougher per-sentence times.
+                    _log(f"Word timestamps off: {e}")
+                    self._word_times_broken = True
+            if result is None:
+                result = model.transcribe(audio_input, **options)
+            text = result["text"].strip()
+            if not timed:
+                return text
+            return text, _timed_words(result)
         except Exception as e:
             # Errors only — never log lecture content
             _log(f"Transcribe error: {e}")
-            return ""
+            return empty
 
     def record_in_chunks(self, chunk_seconds=30):
         """
-        Generator yielding (pass_num, text, words) tuples.
-          pass_num 1 — base model, 30s chunk, list of words for typing effect
-          pass_num 2 — small model, 60s chunk, full corrected text
+        Generator yielding tuples.
+          pass 1 — (1, text, words, chunk_start, chunk_len, timed_words)
+                   base model, 30s chunk. words is the plain word list,
+                   chunk_start is the wall-clock time (time.time()) the
+                   chunk began, chunk_len its length in seconds, and
+                   timed_words a list of (start, end, word) inside the chunk.
+          pass 2 — (2, text, group): small model, 60s chunk, corrected text
         """
         self.stop_flag.clear()
 
@@ -146,13 +199,15 @@ class Recorder:
 
         while not self.stop_flag.is_set():
             # Record chunk and resample to 16000 Hz
-            audio_flat = self._record_chunk(chunk_seconds)
+            chunk_start = time.time()
+            audio_flat  = self._record_chunk(chunk_seconds)
+            chunk_len   = len(audio_flat) / self.sample_rate
 
             # Pass 1: base model transcription
-            text = self._transcribe(self._get_base(), audio_flat)
+            text, timed = self._transcribe(self._get_base(), audio_flat, timed=True)
             if text.strip():
                 words = text.split()
-                yield (1, text, words)
+                yield (1, text, words, chunk_start, chunk_len, timed)
 
             # Accumulate for 60s pass
             audio_buffer_60s.append(audio_flat)
@@ -181,4 +236,4 @@ class Recorder:
             combined = np.concatenate(audio_buffer_60s)
             text     = self._transcribe(self._get_base(), combined)
             if text.strip():
-                yield (1, text, text.split())
+                yield (1, text, text.split(), None, 0, [])

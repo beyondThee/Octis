@@ -21,6 +21,7 @@ import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request, Response
 from recorder import Recorder
+from live_paragraphs import ParagraphSplitter
 from transcriber import Transcriber
 import requests
 from note_generator import NoteGenerator, login, verify_token, WEBSITE_URL
@@ -273,6 +274,12 @@ def start_recording():
     state["pass1_segs"]   = []   # base model segments in order
     state["pass2_segs"]   = {}   # small model corrections keyed by group
     state["typing_queue"] = []   # words waiting to be typed onto screen
+    # Lecture clock for the [12:30] paragraph times: wall time minus pauses
+    state["record_start_ts"] = time.time()
+    state["paused_total"]    = 0.0
+    state["paused_at"]       = None
+    splitter = ParagraphSplitter()
+    state["splitter"] = splitter
 
     recorder = Recorder()
     state["recorder"] = recorder
@@ -290,8 +297,16 @@ def start_recording():
             if pass_num == 1:
                 words = item[2]
                 state["pass1_segs"].append(text)
-                # Queue words for smooth typing effect
-                state["typing_queue"].extend(words)
+                chunk_start, chunk_len, timed = item[3], item[4], item[5]
+                if chunk_start is None:
+                    offset = _lecture_seconds(time.time())
+                else:
+                    offset = _lecture_seconds(chunk_start)
+                # Queue words for smooth typing effect, with a paragraph
+                # marker wherever the speaker paused for 2+ seconds
+                state["typing_queue"].extend(
+                    splitter.add_chunk(offset, chunk_len, timed, words)
+                )
 
             elif pass_num == 2:
                 group = item[2]
@@ -301,6 +316,12 @@ def start_recording():
 
     threading.Thread(target=loop, daemon=True).start()
     return jsonify({"ok": True})
+
+
+def _lecture_seconds(wall_ts):
+    """Seconds into the lecture at wall-clock time wall_ts, not counting pauses."""
+    start = state.get("record_start_ts") or wall_ts
+    return max(0.0, wall_ts - start - state.get("paused_total", 0.0))
 
 
 def _build_transcript():
@@ -332,8 +353,12 @@ def stream_words():
         import time
         while state.get("recording") or state.get("typing_queue"):
             if state.get("typing_queue"):
-                word = state["typing_queue"].pop(0)
-                yield f"data: {word}\n\n"
+                item = state["typing_queue"].pop(0)
+                if isinstance(item, dict):
+                    # New paragraph marker, e.g. {"p": "12:30"}
+                    yield f"data: {json.dumps(item)}\n\n"
+                    continue
+                yield f"data: {json.dumps({'w': item})}\n\n"
                 time.sleep(0.08)   # 80ms between words — smooth typing speed
             else:
                 time.sleep(0.05)
@@ -346,6 +371,16 @@ def stream_words():
 @app.route("/api/pause", methods=["POST"])
 def pause_recording():
     state["paused"] = not state["paused"]
+    # Keep the paragraph clock in lecture time: paused minutes don't count
+    if state["paused"]:
+        state["paused_at"] = time.time()
+    else:
+        if state.get("paused_at"):
+            state["paused_total"] = state.get("paused_total", 0.0) + time.time() - state["paused_at"]
+        state["paused_at"] = None
+        # Speech after a resume always starts a fresh paragraph
+        if state.get("splitter"):
+            state["splitter"].break_next()
     state["status"] = "Paused" if state["paused"] else "Recording..."
     return jsonify({"paused": state["paused"]})
 
