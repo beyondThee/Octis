@@ -912,6 +912,9 @@
       inset  2px  3px 6px rgba(255,255,255,0.10),
       0 0 8px rgba(255,255,255,0.10);
     animation: bubbleRise linear infinite;
+    /* How far a bubble travels: set from the card's real height in JS
+       so bubbles go from the very bottom edge to the very top. */
+    --rise: calc(var(--card-rise, 340px) * -1);
   }
 
   /* Second, smaller highlight — sells the curved glass surface */
@@ -929,13 +932,12 @@
 
   /* Bubbles wobble as they rise instead of tracking straight up */
   @keyframes bubbleRise {
-    0%   { transform: translate(0, 0) scale(0.55); opacity: 0; }
-    10%  { opacity: 0.9; }
-    25%  { transform: translate(9px,  -70px) scale(0.8); }
-    45%  { transform: translate(-7px, -140px) scale(0.95); }
-    65%  { transform: translate(8px,  -210px) scale(1.05); }
-    85%  { transform: translate(-5px, -280px) scale(1.1); opacity: 0.7; }
-    100% { transform: translate(3px,  -340px) scale(1.18); opacity: 0; }
+    0%   { transform: translate(0, 0) scale(0.55); opacity: 0.9; }
+    25%  { transform: translate(9px,  calc(var(--rise) * 0.25)) scale(0.8); }
+    45%  { transform: translate(-7px, calc(var(--rise) * 0.45)) scale(0.95); }
+    65%  { transform: translate(8px,  calc(var(--rise) * 0.65)) scale(1.05); }
+    85%  { transform: translate(-5px, calc(var(--rise) * 0.85)) scale(1.1); opacity: 0.9; }
+    100% { transform: translate(3px,  var(--rise)) scale(1.18); opacity: 0.6; }
   }
 
   .wave-bar:nth-child(1)  { left:  3%; width: 16px; height: 16px; animation-duration: 7.5s;  animation-delay: 0s;   }
@@ -1051,6 +1053,9 @@
      the box can be as tall as possible without the page scrolling. */
   body.live-transcript main { padding-bottom: 16px; }
   body.live-transcript .transcript-section { margin-bottom: 0; }
+  /* Slimmer gap between the green card and the transcript box */
+  body.live-transcript .progress-wrap:not(.visible) { display: none; }
+  body.live-transcript .status-text { margin: 10px 0 8px; }
 
   .transcript-search {
     display: flex;
@@ -3277,6 +3282,20 @@
     if (over > 0) box.style.height = Math.max(220, h - over) + 'px';
   }
   window.addEventListener('resize', fitTranscriptBox);
+
+  // Bubbles start just below the green card and travel its full height
+  // plus a bit, so they pop in at the bottom edge and leave at the top.
+  function sizeBubbles() {
+    const card = document.getElementById('recordCard');
+    if (card && card.offsetHeight) {
+      card.style.setProperty('--card-rise', (card.offsetHeight + 80) + 'px');
+    }
+  }
+  window.addEventListener('resize', sizeBubbles);
+  if (window.ResizeObserver) {
+    const rc = document.getElementById('recordCard');
+    if (rc) new ResizeObserver(sizeBubbles).observe(rc);
+  }
 
   // Ctrl+F while recording jumps into the transcript search box
   document.addEventListener('keydown', ev => {
