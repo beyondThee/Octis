@@ -878,7 +878,11 @@
      Fills the whole card and rises behind the content.          */
   .wave-bars {
     position: absolute;
-    inset: 0;
+    /* The bubbles live inside .card-split, which sits inside the card's
+       padding. Stretch them back out to the card's real edges (same
+       numbers as .record-card padding) so none get cut off early. */
+    inset: -28px -24px -26px;
+    border-radius: 26px;
     z-index: 0;
     opacity: 0;
     overflow: hidden;
