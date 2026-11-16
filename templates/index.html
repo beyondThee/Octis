@@ -1036,7 +1036,9 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 20px;
-    max-height: 46vh;
+    /* Height is set by fitTranscriptBox() to fill the rest of the window,
+       so the page itself never needs scrolling while recording. */
+    height: 46vh;
     display: none;
     flex-direction: column;
     overflow: hidden;
@@ -1044,6 +1046,11 @@
   }
 
   .transcript-section.visible { display: flex; }
+
+  /* While the live transcript shows, trim the page's bottom spacing so
+     the box can be as tall as possible without the page scrolling. */
+  body.live-transcript main { padding-bottom: 16px; }
+  body.live-transcript .transcript-section { margin-bottom: 0; }
 
   .transcript-search {
     display: flex;
@@ -3085,6 +3092,7 @@
     document.getElementById('historySection').style.display  = 'none';
     document.getElementById('transcriptSection').classList.add('visible');
     liveTranscript.reset();
+    fitTranscriptBox();
 
     // ── SSE stream for smooth word-by-word typing ─────────────
     if (window._typingSource) {
@@ -3246,6 +3254,29 @@
       if (ev.key === 'Escape') { ev.preventDefault(); this.clear(); }
     },
   };
+
+  // Make the live transcript box fill the window down to the bottom edge,
+  // so the student only ever scrolls inside the box, never the page.
+  function fitTranscriptBox() {
+    const box = document.getElementById('transcriptSection');
+    const live = box.classList.contains('visible');
+    document.body.classList.toggle('live-transcript', live);
+    if (!live) return;
+    // Scroll whatever holds the page back to the top first
+    for (let el = box.parentElement; el; el = el.parentElement) {
+      if (el.scrollTop) el.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+    const top = box.getBoundingClientRect().top;
+    let h = window.innerHeight - top - 16;
+    box.style.height = Math.max(220, h) + 'px';
+    // Anything still sticking out below (margins, padding) — trim it off
+    const over = Math.max(
+      document.documentElement.scrollHeight - window.innerHeight,
+      document.body.scrollHeight - document.body.clientHeight);
+    if (over > 0) box.style.height = Math.max(220, h - over) + 'px';
+  }
+  window.addEventListener('resize', fitTranscriptBox);
 
   // Ctrl+F while recording jumps into the transcript search box
   document.addEventListener('keydown', ev => {
@@ -3583,6 +3614,7 @@
     document.getElementById('pauseBtn').classList.remove('visible');
     document.getElementById('stopBtn').classList.remove('visible');
     document.getElementById('transcriptSection').classList.remove('visible');
+    document.body.classList.remove('live-transcript');
     document.getElementById('historySection').style.display = '';
     document.getElementById('progressWrap').classList.remove('visible');
     showUploadButton(true);
