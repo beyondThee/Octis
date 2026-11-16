@@ -261,6 +261,14 @@ def start_recording():
     if state["transcriber"] is None:
         return jsonify({"error": "Whisper is still loading, please wait..."}), 503
 
+    # If a recording is somehow still running (page reloaded, double
+    # click, second window), stop it first. Two recordings at once mixed
+    # their words and lecture clocks together in the live transcript.
+    old = state.get("recorder")
+    if old is not None:
+        old.stop_flag.set()
+    state["record_id"] = state.get("record_id", 0) + 1
+
     state["recording"]    = True
     state["paused"]       = False
     state["results"]      = None
@@ -286,7 +294,7 @@ def start_recording():
 
     def loop():
         for item in recorder.record_in_chunks(chunk_seconds=30):
-            if not state["recording"]:
+            if not state["recording"] or state["recorder"] is not recorder:
                 break
             if state["paused"]:
                 continue
@@ -349,9 +357,15 @@ def stream_words():
     Server-Sent Events endpoint that streams words one by one
     from the typing queue so the frontend can animate them smoothly.
     """
+    my_id = state.get("record_id")
+
     def generate():
         import time
         while state.get("recording") or state.get("typing_queue"):
+            # A newer recording started: this old stream must stop, or it
+            # steals words meant for the new one.
+            if state.get("record_id") != my_id:
+                break
             if state.get("typing_queue"):
                 item = state["typing_queue"].pop(0)
                 if isinstance(item, dict):
