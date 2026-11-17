@@ -29,6 +29,7 @@ from output_saver import OutputSaver
 import file_import
 import tempfile
 import uuid
+import functools
 import store
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -244,6 +245,38 @@ def get_history():
     return jsonify([e for _, e in load_user_history()])
 
 
+# ── Busy check (used by the desktop app's update popup) ────────
+# The "Update ready" popup must never interrupt a recording or a
+# generation. Electron asks /api/busy before showing it and waits
+# until the app is idle. Besides recording/generating, these count
+# requests that are waiting on Claude right now (practice tests,
+# cram, generating a saved lecture...).
+_busy_lock     = threading.Lock()
+_busy_requests = 0
+
+
+def counts_as_busy(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        global _busy_requests
+        with _busy_lock:
+            _busy_requests += 1
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            with _busy_lock:
+                _busy_requests -= 1
+    return wrapper
+
+
+@app.route("/api/busy")
+def get_busy():
+    with _busy_lock:
+        waiting = _busy_requests
+    busy = bool(state["recording"] or state["generating"] or waiting > 0)
+    return jsonify({"busy": busy})
+
+
 @app.route("/api/status")
 def get_status():
     return jsonify({
@@ -432,6 +465,7 @@ def get_history_entry(index):
 
 
 @app.route("/api/generate-saved/<int:index>", methods=["POST"])
+@counts_as_busy
 def generate_saved(index):
     """
     Generate notes for a lecture that was saved but never generated
@@ -489,6 +523,7 @@ def generate_saved(index):
 
 
 @app.route("/api/textbook", methods=["POST"])
+@counts_as_busy
 def add_textbook():
     data          = request.get_json()
     index         = data.get("index", -1)
@@ -746,6 +781,7 @@ def _read_flashcards(folder):
 
 
 @app.route("/api/cram/build", methods=["POST"])
+@counts_as_busy
 def build_cram():
     """
     Build (or top up) the question pool for a set of lectures.
@@ -930,6 +966,7 @@ def send_feedback():
 
 
 @app.route("/api/practice-test", methods=["POST"])
+@counts_as_busy
 def practice_test():
     """
     Generate a practice test, or return the saved one.
@@ -979,6 +1016,7 @@ def practice_test():
 
 
 @app.route("/api/rate-answer", methods=["POST"])
+@counts_as_busy
 def rate_answer():
     data = request.get_json()
     import requests as req

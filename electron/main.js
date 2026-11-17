@@ -93,6 +93,20 @@ function reopenAfterInstaller() {
   }
 }
 
+// Wait (without freezing anything) until the installer has closed.
+// Returns true if it finished, false if we gave up after maxSeconds.
+async function waitForInstallerToFinish(maxSeconds) {
+  for (let i = 0; i < maxSeconds; i++) {
+    if (!isInstallerRunning()) {
+      // Small pause so Windows fully releases the installer's files.
+      await new Promise(r => setTimeout(r, 1500));
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return false;
+}
+
 // ── Auto updater ──────────────────────────────────────────────
 // Downloads in the background. When ready, we offer "Restart now"
 // (installs + reopens in ~10 seconds) or "Later" (installs the next
@@ -152,13 +166,104 @@ function checkForUpdatesNow() {
 }
 
 let updatePromptShown = false;
+let updatePromptTimer = null;
+let loggedBusyWait    = false;   // log the wait once, not every 15s
+
+// ── Is the student in the middle of something? ────────────────
+// Busy means any of these:
+//  - a lecture is recording (paused counts too)
+//  - notes are generating, or a request is waiting on Claude
+//  - flashcards, cram, a practice test or weak spots are on screen
+// If something can't be checked, we treat that part as not busy.
+async function isAppBusy() {
+  if (await isBackendBusy()) return true;
+  return isStudentStudying();
+}
+
+function isStudentStudying() {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(false);
+  return mainWindow.webContents
+    .executeJavaScript('typeof window.qnIsStudying === "function" && window.qnIsStudying()', true)
+    .then(r => !!r)
+    .catch(() => false);
+}
+
+function isBackendBusy() {
+  return new Promise(resolve => {
+    const req = http.get('http://127.0.0.1:5000/api/busy', res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => {
+        try { resolve(!!JSON.parse(body).busy); }
+        catch (e) { resolve(false); }
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(3000, () => { req.destroy(); resolve(true); });
+  });
+}
+
+// Never pop the update box up while recording or generating. We
+// check every 15 seconds, and only show it after the app has been
+// idle twice in a row (5 seconds apart), so we don't slip in during
+// the moment between pressing Stop and generation starting.
 function promptToInstallUpdate() {
+  if (!pendingUpdate || updatePromptShown || !mainWindow) return;
+  if (updatePromptTimer) return;   // already waiting for idle
+
+  const tryAgainLater = (ms) => {
+    updatePromptTimer = setTimeout(() => {
+      updatePromptTimer = null;
+      promptToInstallUpdate();
+    }, ms);
+  };
+
+  updatePromptTimer = 'checking';   // blocks a second check starting meanwhile
+  isAppBusy().then(busy => {
+    updatePromptTimer = null;
+    if (busy) {
+      if (!loggedBusyWait) updateLog('Update ready, but the student is busy — waiting');
+      loggedBusyWait = true;
+      return tryAgainLater(15 * 1000);
+    }
+    updatePromptTimer = setTimeout(() => {
+      isAppBusy().then(stillBusy => {
+        updatePromptTimer = null;
+        if (stillBusy) return tryAgainLater(15 * 1000);
+        showUpdatePrompt();
+      });
+    }, 5 * 1000);
+  });
+}
+
+function showUpdatePrompt() {
   if (!pendingUpdate || updatePromptShown || !mainWindow) return;
   updatePromptShown = true;
 
-  const version = pendingUpdate.version ? ` (v${pendingUpdate.version})` : '';
+  const handle = (choice) => {
+    if (choice === 'restart') installUpdateNow();
+    else updateLog('User chose Later — will install on next quit');
+  };
+
+  // Show the app's own styled card. If the page can't show it
+  // (older page, or it errors), fall back to the plain Windows box.
+  const v = pendingUpdate.version || '';
+  mainWindow.webContents
+    .executeJavaScript(
+      'typeof window.qnShowUpdateCard === "function" ? ' +
+      `window.qnShowUpdateCard(${JSON.stringify(v)}) : "unsupported"`, true)
+    .then(choice => {
+      if (choice === 'restart' || choice === 'later') return handle(choice);
+      showNativeUpdatePrompt(handle);
+    })
+    .catch(() => showNativeUpdatePrompt(handle));
+}
+
+function showNativeUpdatePrompt(handle) {
+  if (!mainWindow) return;
+  const version = pendingUpdate && pendingUpdate.version ? ` (v${pendingUpdate.version})` : '';
   dialog.showMessageBox(mainWindow, {
-    type:      'info',
+    type:      'none',
     title:     'Update ready',
     message:   `A new version of Quick Notes${version} is ready.`,
     detail:    'Restart now to install it. It only takes a few seconds and ' +
@@ -168,10 +273,8 @@ function promptToInstallUpdate() {
     defaultId: 0,
     cancelId:  1,
     noLink:    true,
-  }).then(({ response }) => {
-    if (response === 0) installUpdateNow();
-    else updateLog('User chose Later — will install on next quit');
-  }).catch(() => {});
+  }).then(({ response }) => handle(response === 0 ? 'restart' : 'later'))
+    .catch(() => {});
 }
 
 async function installUpdateNow() {
@@ -375,11 +478,25 @@ app.whenReady().then(async () => {
   // Opened while an update is installing? Step aside and reopen
   // automatically once it's done, instead of crashing.
   if (isInstallerRunning()) {
-    updateLog('Opened while the update installer is running — will reopen when it finishes');
-    reopenAfterInstaller();
-    pythonStopped = true;
-    app.exit(0);
-    return;
+    if (process.argv.includes('--updated')) {
+      // The installer opens the app as its very last step, a moment
+      // before it closes itself. The files are already in place, so
+      // we just wait for it to finish and carry on starting up.
+      // (Before 1.3.8 we quit here and relied on a hidden PowerShell
+      // script to reopen us. On some PCs that script never ran, so
+      // "Restart now" left the app closed.)
+      updateLog('Reopened by the update installer — waiting for it to finish');
+      const finished = await waitForInstallerToFinish(120);
+      updateLog(finished
+        ? 'Installer finished — starting up'
+        : 'Installer still running after 2 minutes — starting up anyway');
+    } else {
+      updateLog('Opened while the update installer is running — will reopen when it finishes');
+      reopenAfterInstaller();
+      pythonStopped = true;
+      app.exit(0);
+      return;
+    }
   }
 
   Menu.setApplicationMenu(null);
