@@ -167,12 +167,28 @@ function checkForUpdatesNow() {
 
 let updatePromptShown = false;
 let updatePromptTimer = null;
+let loggedBusyWait    = false;   // log the wait once, not every 15s
 
 // ── Is the student in the middle of something? ────────────────
-// Asks the backend whether a lecture is recording, notes are
-// generating, or a request is waiting on Claude. If the backend
-// doesn't answer, we treat it as not busy.
-function isAppBusy() {
+// Busy means any of these:
+//  - a lecture is recording (paused counts too)
+//  - notes are generating, or a request is waiting on Claude
+//  - flashcards, cram, a practice test or weak spots are on screen
+// If something can't be checked, we treat that part as not busy.
+async function isAppBusy() {
+  if (await isBackendBusy()) return true;
+  return isStudentStudying();
+}
+
+function isStudentStudying() {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(false);
+  return mainWindow.webContents
+    .executeJavaScript('typeof window.qnIsStudying === "function" && window.qnIsStudying()', true)
+    .then(r => !!r)
+    .catch(() => false);
+}
+
+function isBackendBusy() {
   return new Promise(resolve => {
     const req = http.get('http://127.0.0.1:5000/api/busy', res => {
       let body = '';
@@ -202,9 +218,12 @@ function promptToInstallUpdate() {
     }, ms);
   };
 
+  updatePromptTimer = 'checking';   // blocks a second check starting meanwhile
   isAppBusy().then(busy => {
+    updatePromptTimer = null;
     if (busy) {
-      updateLog('Update ready, but app is busy (recording/generating) — waiting');
+      if (!loggedBusyWait) updateLog('Update ready, but the student is busy — waiting');
+      loggedBusyWait = true;
       return tryAgainLater(15 * 1000);
     }
     updatePromptTimer = setTimeout(() => {

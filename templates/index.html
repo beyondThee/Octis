@@ -4007,6 +4007,28 @@
   // Check license on page load
   checkLicense();
 
+
+  // ── Is the student studying right now? ──────────────────────
+  // The desktop app asks this before showing the "Update ready"
+  // popup, so it never interrupts flashcards, a cram session, a
+  // practice test or weak-spot practice.
+  function qnOnScreen(id) {
+    const el = document.getElementById(id);
+    return !!el && el.getClientRects().length > 0;
+  }
+  window.qnIsStudying = function () {
+    try {
+      if (qnOnScreen('study-screen')) return true;          // flashcards
+      if (qnOnScreen('cramSession'))  return true;          // cram
+      if (qnOnScreen('testQuestions') &&
+          typeof testCompleted !== 'undefined' && !testCompleted) return true;  // practice test
+      if (qnOnScreen('weakspotContent')) {                  // weak spots
+        const box = document.getElementById('weakspotContent');
+        if (box.querySelector('[onclick^="answerWeak"], #weakOpenAnswer')) return true;
+      }
+    } catch (e) { /* never block on a bug here */ }
+    return false;
+  };
 </script>
 <script src="/static/practice.js"></script>
 </body>
