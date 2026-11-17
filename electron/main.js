@@ -240,9 +240,30 @@ function showUpdatePrompt() {
   if (!pendingUpdate || updatePromptShown || !mainWindow) return;
   updatePromptShown = true;
 
-  const version = pendingUpdate.version ? ` (v${pendingUpdate.version})` : '';
+  const handle = (choice) => {
+    if (choice === 'restart') installUpdateNow();
+    else updateLog('User chose Later — will install on next quit');
+  };
+
+  // Show the app's own styled card. If the page can't show it
+  // (older page, or it errors), fall back to the plain Windows box.
+  const v = pendingUpdate.version || '';
+  mainWindow.webContents
+    .executeJavaScript(
+      'typeof window.qnShowUpdateCard === "function" ? ' +
+      `window.qnShowUpdateCard(${JSON.stringify(v)}) : "unsupported"`, true)
+    .then(choice => {
+      if (choice === 'restart' || choice === 'later') return handle(choice);
+      showNativeUpdatePrompt(handle);
+    })
+    .catch(() => showNativeUpdatePrompt(handle));
+}
+
+function showNativeUpdatePrompt(handle) {
+  if (!mainWindow) return;
+  const version = pendingUpdate && pendingUpdate.version ? ` (v${pendingUpdate.version})` : '';
   dialog.showMessageBox(mainWindow, {
-    type:      'info',
+    type:      'none',
     title:     'Update ready',
     message:   `A new version of Quick Notes${version} is ready.`,
     detail:    'Restart now to install it. It only takes a few seconds and ' +
@@ -252,10 +273,8 @@ function showUpdatePrompt() {
     defaultId: 0,
     cancelId:  1,
     noLink:    true,
-  }).then(({ response }) => {
-    if (response === 0) installUpdateNow();
-    else updateLog('User chose Later — will install on next quit');
-  }).catch(() => {});
+  }).then(({ response }) => handle(response === 0 ? 'restart' : 'later'))
+    .catch(() => {});
 }
 
 async function installUpdateNow() {

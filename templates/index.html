@@ -1375,6 +1375,70 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Update ready card (shown by the desktop app) ── */
+  .qn-update-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgba(18,18,31,0.35);
+    backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    animation: qnUpFade .25s ease both;
+  }
+  .qn-update-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 18px 50px rgba(20,20,50,0.18);
+    width: 100%; max-width: 380px;
+    padding: 28px 26px 22px;
+    text-align: center;
+    animation: qnUpPop .35s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .qn-update-icon {
+    width: 56px; height: 56px; margin: 0 auto 14px;
+    border-radius: 50%;
+    background: var(--blue-light); color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .qn-update-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px; color: var(--text); margin-bottom: 6px;
+  }
+  .qn-update-badge {
+    display: inline-block; margin-bottom: 12px;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--blue-light); color: var(--blue);
+    font-size: 12px; font-weight: 600;
+  }
+  .qn-update-text {
+    font-size: 14px; line-height: 1.55; color: var(--text-sub);
+    margin-bottom: 20px;
+  }
+  .qn-update-btns { display: flex; flex-direction: column; gap: 8px; }
+  .qn-update-btns button {
+    width: 100%; padding: 12px; border-radius: 12px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+    transition: background var(--transition), transform .12s ease;
+  }
+  .qn-update-btns button:active { transform: scale(.98); }
+  .qn-update-now   { background: var(--blue); color: #fff; border: none; }
+  .qn-update-now:hover { background: var(--blue-hover); }
+  .qn-update-btns button:focus { outline: none; }
+  .qn-update-now:focus-visible { box-shadow: 0 0 0 3px var(--blue-light); }
+  .qn-update-later { background: transparent; color: var(--text-sub); border: 1px solid var(--border); }
+  .qn-update-later:hover { color: var(--text); }
+  .qn-update-note { margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .qn-update-spin {
+    width: 22px; height: 22px; margin: 4px auto 0;
+    border: 3px solid var(--blue-light); border-top-color: var(--blue);
+    border-radius: 50%; animation: qnUpSpin .8s linear infinite;
+  }
+  @keyframes qnUpFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes qnUpPop  { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes qnUpSpin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -4028,6 +4092,50 @@
       }
     } catch (e) { /* never block on a bug here */ }
     return false;
+  };
+
+  // ── "Update ready" card ─────────────────────────────────────
+  // The desktop app calls this instead of a plain Windows box, so an
+  // update looks like good news, not an error. Resolves to
+  // 'restart' or 'later'.
+  window.qnShowUpdateCard = function (version) {
+    return new Promise(resolve => {
+      const old = document.getElementById('qnUpdateOverlay');
+      if (old) old.remove();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'qn-update-overlay';
+      overlay.id = 'qnUpdateOverlay';
+      overlay.innerHTML =
+        '<div class="qn-update-card" role="dialog" aria-modal="true" aria-labelledby="qnUpTitle">' +
+          '<div class="qn-update-icon">✨</div>' +
+          '<div class="qn-update-title" id="qnUpTitle">A new update is ready</div>' +
+          (version ? '<div class="qn-update-badge"></div>' : '') +
+          '<div class="qn-update-text">Restart to get the newest Quick Notes. ' +
+            'It takes a few seconds and opens again by itself.</div>' +
+          '<div class="qn-update-btns">' +
+            '<button class="qn-update-now">Restart now</button>' +
+            '<button class="qn-update-later">Later</button>' +
+          '</div>' +
+          '<div class="qn-update-note">Later updates it next time you close the app.</div>' +
+        '</div>';
+      if (version) overlay.querySelector('.qn-update-badge').textContent = 'Version ' + version;
+      document.body.appendChild(overlay);
+
+      const card = overlay.querySelector('.qn-update-card');
+      overlay.querySelector('.qn-update-now').onclick = () => {
+        card.innerHTML =
+          '<div class="qn-update-title">Updating…</div>' +
+          '<div class="qn-update-text">Quick Notes will open again in a few seconds.</div>' +
+          '<div class="qn-update-spin"></div>';
+        resolve('restart');
+      };
+      overlay.querySelector('.qn-update-later').onclick = () => {
+        overlay.remove();
+        resolve('later');
+      };
+      overlay.querySelector('.qn-update-now').focus();
+    });
   };
 </script>
 <script src="/static/practice.js"></script>
