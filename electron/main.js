@@ -93,6 +93,20 @@ function reopenAfterInstaller() {
   }
 }
 
+// Wait (without freezing anything) until the installer has closed.
+// Returns true if it finished, false if we gave up after maxSeconds.
+async function waitForInstallerToFinish(maxSeconds) {
+  for (let i = 0; i < maxSeconds; i++) {
+    if (!isInstallerRunning()) {
+      // Small pause so Windows fully releases the installer's files.
+      await new Promise(r => setTimeout(r, 1500));
+      return true;
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return false;
+}
+
 // ── Auto updater ──────────────────────────────────────────────
 // Downloads in the background. When ready, we offer "Restart now"
 // (installs + reopens in ~10 seconds) or "Later" (installs the next
@@ -152,7 +166,58 @@ function checkForUpdatesNow() {
 }
 
 let updatePromptShown = false;
+let updatePromptTimer = null;
+
+// ── Is the student in the middle of something? ────────────────
+// Asks the backend whether a lecture is recording, notes are
+// generating, or a request is waiting on Claude. If the backend
+// doesn't answer, we treat it as not busy.
+function isAppBusy() {
+  return new Promise(resolve => {
+    const req = http.get('http://127.0.0.1:5000/api/busy', res => {
+      let body = '';
+      res.on('data', c => { body += c; });
+      res.on('end', () => {
+        try { resolve(!!JSON.parse(body).busy); }
+        catch (e) { resolve(false); }
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(3000, () => { req.destroy(); resolve(true); });
+  });
+}
+
+// Never pop the update box up while recording or generating. We
+// check every 15 seconds, and only show it after the app has been
+// idle twice in a row (5 seconds apart), so we don't slip in during
+// the moment between pressing Stop and generation starting.
 function promptToInstallUpdate() {
+  if (!pendingUpdate || updatePromptShown || !mainWindow) return;
+  if (updatePromptTimer) return;   // already waiting for idle
+
+  const tryAgainLater = (ms) => {
+    updatePromptTimer = setTimeout(() => {
+      updatePromptTimer = null;
+      promptToInstallUpdate();
+    }, ms);
+  };
+
+  isAppBusy().then(busy => {
+    if (busy) {
+      updateLog('Update ready, but app is busy (recording/generating) — waiting');
+      return tryAgainLater(15 * 1000);
+    }
+    updatePromptTimer = setTimeout(() => {
+      isAppBusy().then(stillBusy => {
+        updatePromptTimer = null;
+        if (stillBusy) return tryAgainLater(15 * 1000);
+        showUpdatePrompt();
+      });
+    }, 5 * 1000);
+  });
+}
+
+function showUpdatePrompt() {
   if (!pendingUpdate || updatePromptShown || !mainWindow) return;
   updatePromptShown = true;
 
@@ -375,11 +440,25 @@ app.whenReady().then(async () => {
   // Opened while an update is installing? Step aside and reopen
   // automatically once it's done, instead of crashing.
   if (isInstallerRunning()) {
-    updateLog('Opened while the update installer is running — will reopen when it finishes');
-    reopenAfterInstaller();
-    pythonStopped = true;
-    app.exit(0);
-    return;
+    if (process.argv.includes('--updated')) {
+      // The installer opens the app as its very last step, a moment
+      // before it closes itself. The files are already in place, so
+      // we just wait for it to finish and carry on starting up.
+      // (Before 1.3.8 we quit here and relied on a hidden PowerShell
+      // script to reopen us. On some PCs that script never ran, so
+      // "Restart now" left the app closed.)
+      updateLog('Reopened by the update installer — waiting for it to finish');
+      const finished = await waitForInstallerToFinish(120);
+      updateLog(finished
+        ? 'Installer finished — starting up'
+        : 'Installer still running after 2 minutes — starting up anyway');
+    } else {
+      updateLog('Opened while the update installer is running — will reopen when it finishes');
+      reopenAfterInstaller();
+      pythonStopped = true;
+      app.exit(0);
+      return;
+    }
   }
 
   Menu.setApplicationMenu(null);
